@@ -1,0 +1,12 @@
+{
+  "name": "trading-simulator-app",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "forwardPorts": [8081],
+  "portsAttributes": {
+    "8081": {
+      "label": "Expo Web",
+      "visibility": "public",
+      "onAutoForward": "notify"
+    }
+  }
+}
