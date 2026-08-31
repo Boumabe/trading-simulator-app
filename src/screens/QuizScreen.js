@@ -1,19 +1,36 @@
-import { useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { ATRDiagram, CorrelationDiagram, MultiTFDiagram, OrderFlowDiagram, SentimentDiagram } from "../components/BookDiagrams";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import COLORS from "../constants/palette";
-import { QUIZ_DATA } from "../data/quizzes";
+import { QUIZ_DATA as LOCAL_QUIZ_DATA } from "../data/quizzes";
+import { fetchQuizData } from "../firebase/content";
+import { ATRDiagram, OrderFlowDiagram, CorrelationDiagram, SentimentDiagram, MultiTFDiagram } from "../components/BookDiagrams";
 import { useLang } from "../i18n";
+import { LEVELS } from "../data/levels";
+import { markLevelComplete } from "../utils/progress";
 
 const VISUALS = { atr: ATRDiagram, orderflow: OrderFlowDiagram, correlation: CorrelationDiagram, sentiment: SentimentDiagram, multitf: MultiTFDiagram };
 
 export default function QuizScreen({ quizId, onBack }) {
   const { t, lang } = useLang();
-  const questions = (QUIZ_DATA[quizId] && QUIZ_DATA[quizId][lang]) || (QUIZ_DATA[quizId] && QUIZ_DATA[quizId].fr) || [];
+  const [quizSource, setQuizSource] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [qIndex, setQIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
+  const levelEntry = LEVELS.find((l) => l.quizId === quizId);
+
+  useEffect(() => {
+    (async () => {
+      const remote = await fetchQuizData();
+      setQuizSource(remote || LOCAL_QUIZ_DATA);
+      setLoading(false);
+    })();
+  }, []);
+
+  const questions = quizSource
+    ? (quizSource[quizId] && quizSource[quizId][lang]) || (quizSource[quizId] && quizSource[quizId].fr) || []
+    : [];
 
   const current = questions[qIndex];
   const Visual = current ? VISUALS[current.visual] : null;
@@ -30,6 +47,7 @@ export default function QuizScreen({ quizId, onBack }) {
       setSelected(null);
     } else {
       setFinished(true);
+      if (levelEntry) markLevelComplete(levelEntry.id);
     }
   };
 
@@ -39,6 +57,22 @@ export default function QuizScreen({ quizId, onBack }) {
     setCorrectCount(0);
     setFinished(false);
   };
+
+  if (loading) {
+    return (
+      <View style={styles.root}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={onBack} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
+            <Text style={styles.back}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{t("quiz_title")}</Text>
+        </View>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={COLORS.gold} />
+        </View>
+      </View>
+    );
+  }
 
   if (!current) {
     return (

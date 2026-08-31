@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from "react-native";
 import Svg, { Rect, Line, Circle, Text as SvgText, Defs, Pattern, Polyline } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import COLORS from "../constants/palette";
-import { STRATEGY_DATA } from "../data/levels";
+import { STRATEGY_DATA, LEVELS } from "../data/levels";
 import TourOverlay from "../components/TourOverlay";
 import { useLang } from "../i18n";
+import { localizedLevelName } from "../i18n/levelNames";
+import { getCompletedIds, markLevelComplete } from "../utils/progress";
 
 const PENALTY = 15;
 const BONUS = 5;
@@ -112,7 +114,7 @@ function BracketFrame({ children, color = COLORS.blue, style }) {
 }
 
 export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, onLiveDeltaChange }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const config = STRATEGY_DATA[strategyId] || STRATEGY_DATA.support;
   const isPattern = config.mode === "pattern";
   const isIndicator = config.mode === "indicator";
@@ -121,7 +123,11 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
   const isVWAP = config.mode === "vwap";
   const isTrendZone = config.mode === "trendzone";
   const isTimeWindow = config.mode === "timewindow";
+  const isZoneMode = !isPattern && !isIndicator && !isBand && !isMA && !isVWAP && !isTrendZone && !isTimeWindow;
   const { candles: CANDLES, zones: ZONES, label, touchesRequired } = config;
+  const levelEntry = LEVELS.find((l) => l.strategyId === strategyId);
+  const displayLabel = levelEntry ? localizedLevelName(levelEntry.id, lang) : label;
+  const sniperEligible = (isZoneMode && ZONES && ZONES.length === 1) || isTrendZone;
 
   const [running, setRunning] = useState(false);
   const [candles, setCandles] = useState([]);
@@ -139,24 +145,16 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
   const [sessionEnded, setSessionEnded] = useState(false);
   const [showTour, setShowTour] = useState(false);
 
+  const [sniperActive, setSniperActive] = useState(false);
+  const [drawStep, setDrawStep] = useState("idle");
+  const [drawPoint1, setDrawPoint1] = useState(null);
+  const [playerZone, setPlayerZone] = useState(null);
+  const [playerTrendAnchors, setPlayerTrendAnchors] = useState(null);
+
   const st = useRef({ idx: 0, tick: 0 });
   const velRef = useRef(0);
   const prevRsiRef = useRef(null);
   const canTrade = (balance ?? 0) > 0;
-
-  useEffect(() => {
-    (async () => {
-      const seen = await AsyncStorage.getItem(TOUR_KEY);
-      if (seen) setRunning(true);
-      else setShowTour(true);
-    })();
-  }, []);
-
-  const handleTourFinish = async () => {
-    await AsyncStorage.setItem(TOUR_KEY, "1");
-    setShowTour(false);
-    setRunning(true);
-  };
 
   const priceRange = useMemo(() => {
     const all = CANDLES.flatMap((c) => c.path);
@@ -173,16 +171,52 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
   const volumePanelH = 50;
   const showVolumePanel = (isPattern && config.showVolume) || isVWAP;
 
+  const cutCount = useMemo(() => Math.max(3, Math.min(WINDOW_SIZE, Math.floor(CANDLES.length * 0.25))), [CANDLES]);
+  const previewCandles = useMemo(() => CANDLES.slice(0, cutCount).map((c) => {
+    const vals = c.path;
+    return { open: vals[0], close: vals[vals.length - 1], high: Math.max(...vals), low: Math.min(...vals), touch: false, pattern: false, vol: c.vol };
+  }), [CANDLES, cutCount]);
+
   const yBase = useCallback((p) => chartH - ((p - priceRange.min) / (priceRange.max - priceRange.min)) * chartH, [priceRange]);
   const yAbs = useCallback((p) => yBase(p) + scaleRowH, [yBase]);
 
   const trendZoneAt = useCallback((idx) => {
-    const [a, b] = config.trendAnchors || [{ idx: 0, price: 0 }, { idx: 1, price: 0 }];
+    const anchors = (sniperActive && (drawStep === "confirm" || drawStep === "done") && playerTrendAnchors)
+      ? playerTrendAnchors : (config.trendAnchors || [{ idx: 0, price: 0 }, { idx: 1, price: 0 }]);
+    const [a, b] = anchors;
     const slope = (b.price - a.price) / (b.idx - a.idx);
     const expected = a.price + slope * (idx - a.idx);
     const tol = config.tolerance || 1.5;
     return { low: expected - tol, high: expected + tol };
-  }, [config]);
+  }, [config, sniperActive, drawStep, playerTrendAnchors]);
+
+  const effectiveZones = (sniperActive && (drawStep === "confirm" || drawStep === "done") && playerZone) ? [playerZone] : ZONES;
+
+  const maybeEnterSniper = async () => {
+    if (sniperEligible && levelEntry) {
+      const completed = await getCompletedIds();
+      if (completed.includes(levelEntry.id)) {
+        setSniperActive(true);
+        setDrawStep("intro");
+        return;
+      }
+    }
+    setRunning(true);
+  };
+
+  useEffect(() => {
+    (async () => {
+      const seen = await AsyncStorage.getItem(TOUR_KEY);
+      if (!seen) { setShowTour(true); return; }
+      await maybeEnterSniper();
+    })();
+  }, []);
+
+  const handleTourFinish = async () => {
+    await AsyncStorage.setItem(TOUR_KEY, "1");
+    setShowTour(false);
+    await maybeEnterSniper();
+  };
 
   const resetAll = () => {
     st.current = { idx: 0, tick: 0 };
@@ -193,15 +227,20 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
     setIndicatorSeriesA([]); setIndicatorSeriesB(null); setSignalDeadlineIdx(null);
     setBandSeries({ sma: [], upper: [], lower: [] }); setBandTouchIndices([]);
     setSessionEnded(false);
+    setSniperActive(false); setDrawStep("idle"); setDrawPoint1(null); setPlayerZone(null); setPlayerTrendAnchors(null);
     onLiveDeltaChange?.(0);
-    setRunning(true);
+    maybeEnterSniper();
   };
 
   useEffect(() => {
     if (!running) return;
     const iv = setInterval(() => {
       const s = st.current;
-      if (s.idx >= CANDLES.length) { clearInterval(iv); setRunning(false); setSessionEnded(true); return; }
+      if (s.idx >= CANDLES.length) {
+        clearInterval(iv); setRunning(false); setSessionEnded(true);
+        if (levelEntry) markLevelComplete(levelEntry.id);
+        return;
+      }
       s.tick += 1;
       const c = CANDLES[s.idx];
       const frac = s.tick / TICKS_PER_CANDLE;
@@ -332,9 +371,13 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
     }
   }, [candles.length, isVWAP]);
 
-  const currentPrice = forming ? forming.close : (candles[candles.length - 1]?.close ?? CANDLES[0].path[0]);
+  const showingPreview = sniperActive && drawStep !== "done" && drawStep !== "idle";
+  const currentPrice = showingPreview
+    ? (previewCandles[previewCandles.length - 1]?.close ?? CANDLES[0].path[0])
+    : (forming ? forming.close : (candles[candles.length - 1]?.close ?? CANDLES[0].path[0]));
+
   const activeZone = !isPattern && !isIndicator && !isBand && !isMA && !isVWAP && !isTrendZone && !isTimeWindow
-    ? ZONES.find((z) => currentPrice >= z.low && currentPrice <= z.high) : null;
+    ? effectiveZones.find((z) => currentPrice >= z.low && currentPrice <= z.high) : null;
   const patternWindowOpen = isPattern && patternDeadlineIdx !== null && candles.length <= patternDeadlineIdx;
   const signalWindowOpen = (isIndicator || isBand || isMA || isVWAP) && signalDeadlineIdx !== null && candles.length <= signalDeadlineIdx;
   const trendZoneNow = isTrendZone ? trendZoneAt(candles.length) : null;
@@ -348,7 +391,7 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
           : !!activeZone;
 
   const openPosition = (type) => {
-    if (position || !canTrade) return;
+    if (position || !canTrade || showingPreview) return;
     setPosition({ type, entryPrice: currentPrice, entryCandleIdx: candles.length });
   };
 
@@ -374,7 +417,7 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
     } else if (isIndicator || isBand || isMA || isVWAP) {
       compliant = position.type === config.direction && signalDeadlineIdx !== null && position.entryCandleIdx <= signalDeadlineIdx;
     } else {
-      const matchedZone = ZONES.find((z) => position.entryPrice >= z.low - 0.3 && position.entryPrice <= z.high + 0.3);
+      const matchedZone = effectiveZones.find((z) => position.entryPrice >= z.low - 0.3 && position.entryPrice <= z.high + 0.3);
       compliant = !!matchedZone && position.type === matchedZone.direction;
     }
 
@@ -391,11 +434,32 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
   useEffect(() => { onLiveDeltaChange?.(position ? floatingPnl : 0); }, [floatingPnl, position, onLiveDeltaChange]);
   useEffect(() => () => onLiveDeltaChange?.(0), []);
 
-  const total = candles.length + (forming ? 1 : 0);
-  const startIdx = Math.max(0, total - WINDOW_SIZE);
-  const visible = candles.slice(startIdx);
+  const total = showingPreview ? previewCandles.length : candles.length + (forming ? 1 : 0);
+  const startIdx = showingPreview ? 0 : Math.max(0, total - WINDOW_SIZE);
+  const visible = showingPreview ? previewCandles : candles.slice(startIdx);
   const spacing = plotW / WINDOW_SIZE;
   const reticleX = visible.length * spacing + spacing / 2;
+
+  const handleChartTap = (evt) => {
+    if (drawStep !== "point1" && drawStep !== "point2") return;
+    const { locationX, locationY } = evt.nativeEvent;
+    const price = priceRange.max - ((locationY - scaleRowH) / chartH) * (priceRange.max - priceRange.min);
+    const relIdx = Math.max(0, Math.min(cutCount - 1, Math.round((locationX - spacing / 2) / spacing)));
+    if (drawStep === "point1") {
+      setDrawPoint1({ idx: relIdx, price });
+      setDrawStep("point2");
+    } else {
+      const p2 = { idx: relIdx, price };
+      if (isTrendZone) {
+        let anchors = drawPoint1.idx <= p2.idx ? [drawPoint1, p2] : [p2, drawPoint1];
+        if (anchors[0].idx === anchors[1].idx) anchors = [anchors[0], { ...anchors[1], idx: anchors[1].idx + 1 }];
+        setPlayerTrendAnchors(anchors);
+      } else {
+        setPlayerZone({ low: Math.min(drawPoint1.price, p2.price), high: Math.max(drawPoint1.price, p2.price), direction: ZONES[0].direction });
+      }
+      setDrawStep("confirm");
+    }
+  };
 
   const latestRsi = config.indicator === "rsi" && indicatorSeriesA.length ? indicatorSeriesA[indicatorSeriesA.length - 1] : null;
   const latestMacdDiff = config.indicator === "macd" && indicatorSeriesA.length && indicatorSeriesB
@@ -456,13 +520,170 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
   const totalNet = trades.reduce((sum, tr) => sum + (tr.netDelta ?? tr.pnl), 0);
   const showSummary = sessionEnded && !position;
 
+  const chartSvg = (
+    <Svg width={chartW} height={svgH} style={{ backgroundColor: COLORS.bg }}>
+      <Defs>
+        <Pattern id="hazardHatch" patternUnits="userSpaceOnUse" width={8} height={8} patternTransform="rotate(45)">
+          <Rect width={8} height={8} fill={COLORS.blue} opacity={0.1} />
+          <Line x1={0} y1={0} x2={0} y2={8} stroke={COLORS.blue} strokeWidth={1.4} opacity={0.4} />
+        </Pattern>
+      </Defs>
+
+      {visible.map((_, i) =>
+        i % 3 === 0 ? (
+          <SvgText key={`t${i}`} x={i * spacing + spacing / 2} y={11} fill={COLORS.dim} fontSize={8} textAnchor="middle">
+            {startIdx + i + 1}
+          </SvgText>
+        ) : null
+      )}
+      <Line x1={0} y1={scaleRowH} x2={plotW} y2={scaleRowH} stroke={COLORS.line} strokeWidth={0.6} />
+
+      {[0.2, 0.4, 0.6, 0.8].map((f) => (
+        <Line key={f} x1={0} y1={scaleRowH + chartH * f} x2={plotW} y2={scaleRowH + chartH * f} stroke={COLORS.line} strokeWidth={0.5} opacity={0.4} />
+      ))}
+
+      {isTimeWindow && config.windowRange && (() => {
+        const [ws, we] = config.windowRange;
+        const relStart = Math.max(0, ws - startIdx);
+        const relEnd = Math.min(WINDOW_SIZE, we - startIdx + 1);
+        if (relEnd <= 0 || relStart >= WINDOW_SIZE) return null;
+        return (
+          <Rect x={relStart * spacing} y={scaleRowH} width={(relEnd - relStart) * spacing} height={chartH - scaleRowH}
+            fill={config.timewindowType === "avoid" ? COLORS.bear : COLORS.gold} opacity={0.12} />
+        );
+      })()}
+
+      {isTrendZone && (
+        <Polyline
+          points={visible.map((_, i) => {
+            const idx = startIdx + i + 1;
+            const z = trendZoneAt(idx);
+            return `${i * spacing + spacing / 2},${yAbs((z.low + z.high) / 2)}`;
+          }).join(" ")}
+          fill="none" stroke={COLORS.blue} strokeWidth={1.4} strokeDasharray="4,3"
+        />
+      )}
+
+      {!isPattern && !isIndicator && !isBand && !isMA && !isVWAP && !isTrendZone && !isTimeWindow && effectiveZones && effectiveZones.map((z, zi) => (
+        <React.Fragment key={zi}>
+          <Rect x={0} y={yAbs(z.high)} width={plotW} height={yAbs(z.low) - yAbs(z.high)} fill="url(#hazardHatch)" />
+          <Line x1={0} y1={yAbs(z.high)} x2={plotW} y2={yAbs(z.high)} stroke={COLORS.blue} strokeWidth={1} />
+          <Line x1={0} y1={yAbs(z.low)} x2={plotW} y2={yAbs(z.low)} stroke={COLORS.blue} strokeWidth={1} />
+        </React.Fragment>
+      ))}
+
+      {!isPattern && !isIndicator && !isBand && !isMA && !isVWAP && !isTrendZone && !isTimeWindow && config.fiboLevels && config.fiboLevels.map((lv, li) => (
+        <React.Fragment key={`fib${li}`}>
+          <Line x1={0} y1={yAbs(lv.price)} x2={plotW} y2={yAbs(lv.price)}
+            stroke={lv.highlight ? COLORS.gold : COLORS.blue} strokeWidth={lv.highlight ? 1.4 : 0.8}
+            strokeDasharray={lv.highlight ? undefined : "3,3"} opacity={lv.highlight ? 0.9 : 0.45} />
+          <SvgText x={4} y={yAbs(lv.price) - 3} fill={lv.highlight ? COLORS.gold : COLORS.dim} fontSize={8}>{lv.pct}</SvgText>
+        </React.Fragment>
+      ))}
+
+      {isBand && (() => {
+        const pts = (arr) => visible.map((_, i) => {
+          const idx = startIdx + i;
+          const v = arr[idx];
+          return v == null ? null : `${i * spacing + spacing / 2},${yAbs(v)}`;
+        }).filter(Boolean).join(" ");
+        return (
+          <React.Fragment>
+            <Polyline points={pts(bandSeries.upper)} fill="none" stroke={COLORS.blue} strokeWidth={1} opacity={0.7} />
+            <Polyline points={pts(bandSeries.sma)} fill="none" stroke={COLORS.dim} strokeWidth={1} strokeDasharray="3,3" />
+            <Polyline points={pts(bandSeries.lower)} fill="none" stroke={COLORS.blue} strokeWidth={1} opacity={0.7} />
+          </React.Fragment>
+        );
+      })()}
+
+      {isMA && (() => {
+        const pts = (arr) => visible.map((_, i) => {
+          const idx = startIdx + i;
+          const v = arr[idx];
+          return v == null ? null : `${i * spacing + spacing / 2},${yAbs(v)}`;
+        }).filter(Boolean).join(" ");
+        return (
+          <React.Fragment>
+            <Polyline points={pts(indicatorSeriesA)} fill="none" stroke={COLORS.gold} strokeWidth={1.6} />
+            <Polyline points={pts(indicatorSeriesB || [])} fill="none" stroke={COLORS.blue} strokeWidth={1.4} />
+          </React.Fragment>
+        );
+      })()}
+
+      {isVWAP && (() => {
+        const pts = visible.map((_, i) => {
+          const idx = startIdx + i;
+          const v = indicatorSeriesA[idx];
+          return v == null ? null : `${i * spacing + spacing / 2},${yAbs(v)}`;
+        }).filter(Boolean).join(" ");
+        return <Polyline points={pts} fill="none" stroke={COLORS.gold} strokeWidth={1.8} />;
+      })()}
+
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+        const py = scaleRowH + chartH * f;
+        const priceAtY = priceRange.max - f * (priceRange.max - priceRange.min);
+        return (
+          <React.Fragment key={f}>
+            <Line x1={plotW} y1={py} x2={plotW + 6} y2={py} stroke={COLORS.dim} strokeWidth={1} />
+            <SvgText x={plotW + 8} y={py + 3} fill={COLORS.dim} fontSize={8}>{priceAtY.toFixed(1)}</SvgText>
+          </React.Fragment>
+        );
+      })}
+
+      {visible.map((c, i) => {
+        const idx = startIdx + i;
+        const bull = c.close >= c.open;
+        const cx = i * spacing + spacing / 2;
+        const color = bull ? COLORS.bull : COLORS.bear;
+        return (
+          <React.Fragment key={i}>
+            <Line x1={cx} y1={yAbs(c.high)} x2={cx} y2={yAbs(c.low)} stroke={color} strokeWidth={1.3} />
+            <Rect x={cx - spacing * 0.2} y={yAbs(Math.max(c.open, c.close))} width={spacing * 0.4}
+              height={Math.max(2, Math.abs(yAbs(c.open) - yAbs(c.close)))} fill={color} />
+            {c.touch && <Circle cx={cx} cy={yAbs(c.low)} r={4} stroke={COLORS.gold} strokeWidth={1.2} fill="none" />}
+            {(isBand || isVWAP) && bandTouchIndices.includes(idx) && (
+              <Circle cx={cx} cy={yAbs(config.direction === "buy" ? c.low : c.high)} r={4} stroke={COLORS.gold} strokeWidth={1.2} fill="none" />
+            )}
+            {c.pattern && (
+              <React.Fragment>
+                <Circle cx={cx} cy={yAbs(c.low)} r={4} stroke={COLORS.gold} strokeWidth={1.2} fill="none" />
+                <SvgText x={cx - 20} y={yAbs(c.low) + 16} fill={COLORS.gold} fontSize={8}>{config.patternName}</SvgText>
+              </React.Fragment>
+            )}
+          </React.Fragment>
+        );
+      })}
+
+      {!showingPreview && forming && (() => {
+        const i = visible.length;
+        const bull = forming.close >= forming.open;
+        const cx = i * spacing + spacing / 2;
+        return (
+          <React.Fragment>
+            <Line x1={cx} y1={yAbs(forming.high)} x2={cx} y2={yAbs(forming.low)} stroke={bull ? COLORS.bull : COLORS.bear} strokeWidth={1.3} />
+            <Rect x={cx - spacing * 0.2} y={yAbs(Math.max(forming.open, forming.close))} width={spacing * 0.4}
+              height={Math.max(2, Math.abs(yAbs(forming.open) - yAbs(forming.close)))} fill={bull ? COLORS.bull : COLORS.bear} opacity={0.92} />
+          </React.Fragment>
+        );
+      })()}
+
+      {position && (
+        <Line x1={0} y1={yAbs(position.entryPrice)} x2={plotW} y2={yAbs(position.entryPrice)} stroke={COLORS.text} strokeWidth={1} strokeDasharray="5,3" />
+      )}
+      {inZone && !showingPreview && (
+        <Line x1={0} y1={yAbs(currentPrice)} x2={reticleX - 10} y2={yAbs(currentPrice)} stroke={COLORS.gold} strokeWidth={1} strokeDasharray="2,4" />
+      )}
+      {!showingPreview && <Reticle x={reticleX} yPos={yAbs(currentPrice)} locked={inZone} lockedLabel={t("hud_target_locked")} />}
+    </Svg>
+  );
+
   return (
     <View style={styles.root}>
       <View style={styles.topBar}>
         <TouchableOpacity onPress={onBack} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
           <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.symbol}>XAU/USD · 1M · {label}</Text>
+        <Text style={styles.symbol}>XAU/USD · 1M · {displayLabel}</Text>
       </View>
 
       {!canTrade && (
@@ -471,175 +692,35 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
         </View>
       )}
 
+      {sniperActive && (drawStep === "point1" || drawStep === "point2") && (
+        <View style={styles.sniperBanner}>
+          <Text style={styles.sniperBannerText}>
+            {isTrendZone
+              ? (drawStep === "point1" ? t("sniper_step1_trend") : t("sniper_step2_trend"))
+              : (drawStep === "point1" ? t("sniper_step1_zone") : t("sniper_step2_zone"))}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.priceRow}>
         <Text style={styles.priceValue}>{currentPrice.toFixed(2)}</Text>
-        <View style={[styles.priceBar, { width: inZone ? 40 : 14, backgroundColor: inZone ? COLORS.gold : COLORS.line }]} />
+        <View style={[styles.priceBar, { width: inZone && !showingPreview ? 40 : 14, backgroundColor: inZone && !showingPreview ? COLORS.gold : COLORS.line }]} />
       </View>
 
       <View style={styles.hudRow}>
         <Text style={styles.hudChip}>{hudLabel}</Text>
-        <Text style={[styles.hudChip, inZone && { color: COLORS.gold, borderColor: COLORS.gold }]}>
-          {inZone ? t("hud_target_locked") : t("hud_out_of_zone")}
+        <Text style={[styles.hudChip, inZone && !showingPreview && { color: COLORS.gold, borderColor: COLORS.gold }]}>
+          {inZone && !showingPreview ? t("hud_target_locked") : t("hud_out_of_zone")}
         </Text>
+        {sniperActive && <Text style={[styles.hudChip, { color: COLORS.gold, borderColor: COLORS.gold }]}>{t("sniper_badge")}</Text>}
       </View>
 
       <BracketFrame style={{ alignSelf: "center" }}>
-        <Svg width={chartW} height={svgH} style={{ backgroundColor: COLORS.bg }}>
-          <Defs>
-            <Pattern id="hazardHatch" patternUnits="userSpaceOnUse" width={8} height={8} patternTransform="rotate(45)">
-              <Rect width={8} height={8} fill={COLORS.blue} opacity={0.1} />
-              <Line x1={0} y1={0} x2={0} y2={8} stroke={COLORS.blue} strokeWidth={1.4} opacity={0.4} />
-            </Pattern>
-          </Defs>
+        {sniperActive && (drawStep === "point1" || drawStep === "point2") ? (
+          <Pressable onPress={handleChartTap}>{chartSvg}</Pressable>
+        ) : chartSvg}
 
-          {visible.map((_, i) =>
-            i % 3 === 0 ? (
-              <SvgText key={`t${i}`} x={i * spacing + spacing / 2} y={11} fill={COLORS.dim} fontSize={8} textAnchor="middle">
-                {startIdx + i + 1}
-              </SvgText>
-            ) : null
-          )}
-          <Line x1={0} y1={scaleRowH} x2={plotW} y2={scaleRowH} stroke={COLORS.line} strokeWidth={0.6} />
-
-          {[0.2, 0.4, 0.6, 0.8].map((f) => (
-            <Line key={f} x1={0} y1={scaleRowH + chartH * f} x2={plotW} y2={scaleRowH + chartH * f} stroke={COLORS.line} strokeWidth={0.5} opacity={0.4} />
-          ))}
-
-          {isTimeWindow && config.windowRange && (() => {
-            const [ws, we] = config.windowRange;
-            const relStart = Math.max(0, ws - startIdx);
-            const relEnd = Math.min(WINDOW_SIZE, we - startIdx + 1);
-            if (relEnd <= 0 || relStart >= WINDOW_SIZE) return null;
-            return (
-              <Rect x={relStart * spacing} y={scaleRowH} width={(relEnd - relStart) * spacing} height={chartH - scaleRowH}
-                fill={config.timewindowType === "avoid" ? COLORS.bear : COLORS.gold} opacity={0.12} />
-            );
-          })()}
-
-          {isTrendZone && (
-            <Polyline
-              points={visible.map((_, i) => {
-                const idx = startIdx + i + 1;
-                const z = trendZoneAt(idx);
-                return `${i * spacing + spacing / 2},${yAbs((z.low + z.high) / 2)}`;
-              }).join(" ")}
-              fill="none" stroke={COLORS.blue} strokeWidth={1.4} strokeDasharray="4,3"
-            />
-          )}
-
-          {!isPattern && !isIndicator && !isBand && !isMA && !isVWAP && !isTrendZone && !isTimeWindow && ZONES && ZONES.map((z, zi) => (
-            <React.Fragment key={zi}>
-              <Rect x={0} y={yAbs(z.high)} width={plotW} height={yAbs(z.low) - yAbs(z.high)} fill="url(#hazardHatch)" />
-              <Line x1={0} y1={yAbs(z.high)} x2={plotW} y2={yAbs(z.high)} stroke={COLORS.blue} strokeWidth={1} />
-              <Line x1={0} y1={yAbs(z.low)} x2={plotW} y2={yAbs(z.low)} stroke={COLORS.blue} strokeWidth={1} />
-            </React.Fragment>
-          ))}
-
-          {!isPattern && !isIndicator && !isBand && !isMA && !isVWAP && !isTrendZone && !isTimeWindow && config.fiboLevels && config.fiboLevels.map((lv, li) => (
-            <React.Fragment key={`fib${li}`}>
-              <Line x1={0} y1={yAbs(lv.price)} x2={plotW} y2={yAbs(lv.price)}
-                stroke={lv.highlight ? COLORS.gold : COLORS.blue} strokeWidth={lv.highlight ? 1.4 : 0.8}
-                strokeDasharray={lv.highlight ? undefined : "3,3"} opacity={lv.highlight ? 0.9 : 0.45} />
-              <SvgText x={4} y={yAbs(lv.price) - 3} fill={lv.highlight ? COLORS.gold : COLORS.dim} fontSize={8}>{lv.pct}</SvgText>
-            </React.Fragment>
-          ))}
-
-          {isBand && (() => {
-            const pts = (arr) => visible.map((_, i) => {
-              const idx = startIdx + i;
-              const v = arr[idx];
-              return v == null ? null : `${i * spacing + spacing / 2},${yAbs(v)}`;
-            }).filter(Boolean).join(" ");
-            return (
-              <React.Fragment>
-                <Polyline points={pts(bandSeries.upper)} fill="none" stroke={COLORS.blue} strokeWidth={1} opacity={0.7} />
-                <Polyline points={pts(bandSeries.sma)} fill="none" stroke={COLORS.dim} strokeWidth={1} strokeDasharray="3,3" />
-                <Polyline points={pts(bandSeries.lower)} fill="none" stroke={COLORS.blue} strokeWidth={1} opacity={0.7} />
-              </React.Fragment>
-            );
-          })()}
-
-          {isMA && (() => {
-            const pts = (arr) => visible.map((_, i) => {
-              const idx = startIdx + i;
-              const v = arr[idx];
-              return v == null ? null : `${i * spacing + spacing / 2},${yAbs(v)}`;
-            }).filter(Boolean).join(" ");
-            return (
-              <React.Fragment>
-                <Polyline points={pts(indicatorSeriesA)} fill="none" stroke={COLORS.gold} strokeWidth={1.6} />
-                <Polyline points={pts(indicatorSeriesB || [])} fill="none" stroke={COLORS.blue} strokeWidth={1.4} />
-              </React.Fragment>
-            );
-          })()}
-
-          {isVWAP && (() => {
-            const pts = visible.map((_, i) => {
-              const idx = startIdx + i;
-              const v = indicatorSeriesA[idx];
-              return v == null ? null : `${i * spacing + spacing / 2},${yAbs(v)}`;
-            }).filter(Boolean).join(" ");
-            return <Polyline points={pts} fill="none" stroke={COLORS.gold} strokeWidth={1.8} />;
-          })()}
-
-          {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-            const py = scaleRowH + chartH * f;
-            const priceAtY = priceRange.max - f * (priceRange.max - priceRange.min);
-            return (
-              <React.Fragment key={f}>
-                <Line x1={plotW} y1={py} x2={plotW + 6} y2={py} stroke={COLORS.dim} strokeWidth={1} />
-                <SvgText x={plotW + 8} y={py + 3} fill={COLORS.dim} fontSize={8}>{priceAtY.toFixed(1)}</SvgText>
-              </React.Fragment>
-            );
-          })}
-
-          {visible.map((c, i) => {
-            const idx = startIdx + i;
-            const bull = c.close >= c.open;
-            const cx = i * spacing + spacing / 2;
-            const color = bull ? COLORS.bull : COLORS.bear;
-            return (
-              <React.Fragment key={i}>
-                <Line x1={cx} y1={yAbs(c.high)} x2={cx} y2={yAbs(c.low)} stroke={color} strokeWidth={1.3} />
-                <Rect x={cx - spacing * 0.2} y={yAbs(Math.max(c.open, c.close))} width={spacing * 0.4}
-                  height={Math.max(2, Math.abs(yAbs(c.open) - yAbs(c.close)))} fill={color} />
-                {c.touch && <Circle cx={cx} cy={yAbs(c.low)} r={4} stroke={COLORS.gold} strokeWidth={1.2} fill="none" />}
-                {(isBand || isVWAP) && bandTouchIndices.includes(idx) && (
-                  <Circle cx={cx} cy={yAbs(config.direction === "buy" ? c.low : c.high)} r={4} stroke={COLORS.gold} strokeWidth={1.2} fill="none" />
-                )}
-                {c.pattern && (
-                  <React.Fragment>
-                    <Circle cx={cx} cy={yAbs(c.low)} r={4} stroke={COLORS.gold} strokeWidth={1.2} fill="none" />
-                    <SvgText x={cx - 20} y={yAbs(c.low) + 16} fill={COLORS.gold} fontSize={8}>{config.patternName}</SvgText>
-                  </React.Fragment>
-                )}
-              </React.Fragment>
-            );
-          })}
-
-          {forming && (() => {
-            const i = visible.length;
-            const bull = forming.close >= forming.open;
-            const cx = i * spacing + spacing / 2;
-            return (
-              <React.Fragment>
-                <Line x1={cx} y1={yAbs(forming.high)} x2={cx} y2={yAbs(forming.low)} stroke={bull ? COLORS.bull : COLORS.bear} strokeWidth={1.3} />
-                <Rect x={cx - spacing * 0.2} y={yAbs(Math.max(forming.open, forming.close))} width={spacing * 0.4}
-                  height={Math.max(2, Math.abs(yAbs(forming.open) - yAbs(forming.close)))} fill={bull ? COLORS.bull : COLORS.bear} opacity={0.92} />
-              </React.Fragment>
-            );
-          })()}
-
-          {position && (
-            <Line x1={0} y1={yAbs(position.entryPrice)} x2={plotW} y2={yAbs(position.entryPrice)} stroke={COLORS.text} strokeWidth={1} strokeDasharray="5,3" />
-          )}
-          {inZone && (
-            <Line x1={0} y1={yAbs(currentPrice)} x2={reticleX - 10} y2={yAbs(currentPrice)} stroke={COLORS.gold} strokeWidth={1} strokeDasharray="2,4" />
-          )}
-          <Reticle x={reticleX} yPos={yAbs(currentPrice)} locked={inZone} lockedLabel={t("hud_target_locked")} />
-        </Svg>
-
-        {showVolumePanel && (() => {
+        {showVolumePanel && !showingPreview && (() => {
           const vols = visible.map((c) => c.vol || 0);
           const maxVol = Math.max(1, ...vols);
           return (
@@ -657,7 +738,7 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
           );
         })()}
 
-        {isIndicator && config.indicator === "rsi" && (
+        {isIndicator && !showingPreview && config.indicator === "rsi" && (
           <Svg width={chartW} height={indicatorPanelH} style={{ backgroundColor: COLORS.panel }}>
             <Line x1={0} y1={indicatorPanelH * (1 - (config.overbought ?? 70) / 100)} x2={plotW} y2={indicatorPanelH * (1 - (config.overbought ?? 70) / 100)} stroke={COLORS.bear} strokeDasharray="3,3" strokeWidth={1} />
             <Line x1={0} y1={indicatorPanelH * (1 - (config.oversold ?? 30) / 100)} x2={plotW} y2={indicatorPanelH * (1 - (config.oversold ?? 30) / 100)} stroke={COLORS.bull} strokeDasharray="3,3" strokeWidth={1} />
@@ -667,7 +748,7 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
           </Svg>
         )}
 
-        {isIndicator && config.indicator === "stoch" && (
+        {isIndicator && !showingPreview && config.indicator === "stoch" && (
           <Svg width={chartW} height={indicatorPanelH} style={{ backgroundColor: COLORS.panel }}>
             <Line x1={0} y1={indicatorPanelH * (1 - (config.overbought ?? 80) / 100)} x2={plotW} y2={indicatorPanelH * (1 - (config.overbought ?? 80) / 100)} stroke={COLORS.bear} strokeDasharray="3,3" strokeWidth={1} />
             <Line x1={0} y1={indicatorPanelH * (1 - (config.oversold ?? 20) / 100)} x2={plotW} y2={indicatorPanelH * (1 - (config.oversold ?? 20) / 100)} stroke={COLORS.bull} strokeDasharray="3,3" strokeWidth={1} />
@@ -678,7 +759,7 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
           </Svg>
         )}
 
-        {isIndicator && config.indicator === "macd" && (() => {
+        {isIndicator && !showingPreview && config.indicator === "macd" && (() => {
           const macdVals = indicatorSeriesA.slice(startIdx);
           const sigVals = (indicatorSeriesB || []).slice(startIdx);
           const all = [...macdVals, ...sigVals].filter((v) => v !== null && v !== undefined);
@@ -710,10 +791,10 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
         <TouchableOpacity style={styles.infoBtn} onPress={() => setShowInfo((v) => !v)} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
           <Text style={{ color: COLORS.text }}>ⓘ</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tradeBtn, { backgroundColor: COLORS.bull, opacity: canTrade ? 1 : 0.4 }]} disabled={!!position || !canTrade} onPress={() => openPosition("buy")}>
+        <TouchableOpacity style={[styles.tradeBtn, { backgroundColor: COLORS.bull, opacity: canTrade && !showingPreview ? 1 : 0.4 }]} disabled={!!position || !canTrade || showingPreview} onPress={() => openPosition("buy")}>
           <Text style={styles.tradeBtnText}>{t("play_buy")}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tradeBtn, { backgroundColor: COLORS.bear, opacity: canTrade ? 1 : 0.4 }]} disabled={!!position || !canTrade} onPress={() => openPosition("sell")}>
+        <TouchableOpacity style={[styles.tradeBtn, { backgroundColor: COLORS.bear, opacity: canTrade && !showingPreview ? 1 : 0.4 }]} disabled={!!position || !canTrade || showingPreview} onPress={() => openPosition("sell")}>
           <Text style={styles.tradeBtnText}>{t("play_sell")}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.closeBtn} disabled={!position} onPress={closePosition}>
@@ -744,7 +825,7 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
         <View style={styles.overlay}>
           <View style={styles.summaryCard}>
             <Text style={styles.panelTitle}>{t("play_session_over")}</Text>
-            <Text style={styles.summaryTitle}>{label}</Text>
+            <Text style={styles.summaryTitle}>{displayLabel}</Text>
             <View style={styles.summaryRow}>
               <View>
                 <Text style={styles.summaryLabel}>{t("play_discipline")}</Text>
@@ -773,6 +854,28 @@ export default function PlayScreen({ onBack, balance, onApplyDelta, strategyId, 
       )}
 
       {showTour && <TourOverlay onFinish={handleTourFinish} />}
+
+      {sniperActive && drawStep === "intro" && (
+        <View style={styles.overlay}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.panelTitle}>{t("sniper_intro_title")}</Text>
+            <Text style={styles.summaryTitle}>{displayLabel}</Text>
+            <Text style={styles.summaryNote}>{t("sniper_intro_text")}</Text>
+            <TouchableOpacity style={styles.closeInfoBtn} onPress={() => setDrawStep("point1")}>
+              <Text style={{ color: "#0A0E17", fontWeight: "700" }}>{t("sniper_intro_button")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {sniperActive && drawStep === "confirm" && (
+        <View style={styles.confirmBar}>
+          <Text style={styles.confirmText}>{t("sniper_confirm_text")}</Text>
+          <TouchableOpacity style={styles.confirmBtn} onPress={() => { setDrawStep("done"); setRunning(true); }}>
+            <Text style={{ color: "#0A0E17", fontWeight: "700" }}>{t("sniper_confirm_button")}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -802,10 +905,12 @@ const styles = StyleSheet.create({
   symbol: { color: COLORS.dim, fontSize: 11, letterSpacing: 1 },
   brokeBanner: { backgroundColor: "#1F1420", borderColor: COLORS.bear, borderWidth: 1, marginHorizontal: 14, borderRadius: 8, padding: 8, marginBottom: 10 },
   brokeBannerText: { color: COLORS.bear, fontSize: 11, textAlign: "center" },
+  sniperBanner: { backgroundColor: COLORS.panel, borderColor: COLORS.gold, borderWidth: 1, marginHorizontal: 14, borderRadius: 8, padding: 8, marginBottom: 10 },
+  sniperBannerText: { color: COLORS.gold, fontSize: 11, textAlign: "center" },
   priceRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, marginBottom: 8 },
   priceValue: { color: COLORS.dim, fontSize: 15, fontWeight: "600" },
   priceBar: { height: 2, borderRadius: 1 },
-  hudRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, marginBottom: 8 },
+  hudRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, marginBottom: 8, flexWrap: "wrap" },
   hudChip: { color: COLORS.dim, fontSize: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   pnlText: { textAlign: "center", fontSize: 13, marginBottom: 6 },
   bottomBar: { flexDirection: "row", gap: 6, padding: 10, borderTopWidth: 1, borderTopColor: COLORS.line, backgroundColor: COLORS.panel },
@@ -825,4 +930,7 @@ const styles = StyleSheet.create({
   summaryValue: { color: COLORS.text, fontSize: 20, fontWeight: "800", marginTop: 4 },
   summaryNote: { color: COLORS.dim, fontSize: 12, lineHeight: 17, marginBottom: 16 },
   cancelBtn: { alignItems: "center", padding: 10, marginTop: 6 },
+  confirmBar: { position: "absolute", left: 14, right: 14, bottom: 90, backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.gold, borderRadius: 12, padding: 14, alignItems: "center" },
+  confirmText: { color: COLORS.text, fontSize: 12, textAlign: "center", marginBottom: 10 },
+  confirmBtn: { backgroundColor: COLORS.gold, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20 },
 });

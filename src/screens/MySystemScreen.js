@@ -4,11 +4,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import COLORS from "../constants/palette";
 import { LEVELS } from "../data/levels";
 import { useLang } from "../i18n";
+import { localizedLevelName } from "../i18n/levelNames";
 
 const KEY = "my_system_checklist";
 
 export default function MySystemScreen({ onBack }) {
-  const { t } = useLang();
+    const { t, lang } = useLang();
   const [checked, setChecked] = useState(new Set());
   const [loaded, setLoaded] = useState(false);
 
@@ -58,7 +59,7 @@ export default function MySystemScreen({ onBack }) {
                   <View style={[styles.checkbox, isOn && { backgroundColor: COLORS.gold, borderColor: COLORS.gold }]}>
                     {isOn && <Text style={{ color: "#0A0E17", fontSize: 11, fontWeight: "800" }}>✓</Text>}
                   </View>
-                  <Text style={[styles.rowText, isOn && { color: COLORS.text }]}>{lvl.name}</Text>
+                                    <Text style={[styles.rowText, isOn && { color: COLORS.text }]}>{localizedLevelName(lvl.id, lang)}</Text>
                 </TouchableOpacity>
               </View>
             );

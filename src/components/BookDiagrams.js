@@ -20,6 +20,25 @@ function useLoopedT(durationMs = 2400, pauseMs = 700) {
   return t;
 }
 
+function revealPath(points, t) {
+  const totalSegs = points.length - 1;
+  const raw = t * totalSegs;
+  const segIdx = Math.min(Math.floor(raw), totalSegs - 1);
+  const segFrac = raw - segIdx;
+  const [ax, ay] = points[segIdx];
+  const [bx, by] = points[segIdx + 1];
+  const curX = ax + (bx - ax) * segFrac;
+  const curY = ay + (by - ay) * segFrac;
+  const visible = points.slice(0, segIdx + 1);
+  const pointsStr = [...visible, [curX, curY]].map((p) => p.join(",")).join(" ");
+  return { pointsStr, curX, curY };
+}
+
+function barProgress(t, n, i) {
+  return Math.max(0, Math.min(1, t * n - i));
+}
+
+/* ---------- déjà animées — inchangées ---------- */
 export function CandleDiagram() {
   const t = useLoopedT(2400, 700);
   const cx = 150;
@@ -87,16 +106,8 @@ const SR_BREAK_INDEX = 5;
 
 export function PolarityDiagram() {
   const t = useLoopedT(3200, 800);
-  const totalSegs = SR_POINTS.length - 1;
-  const raw = t * totalSegs;
-  const segIdx = Math.min(Math.floor(raw), totalSegs - 1);
-  const segFrac = raw - segIdx;
-  const visiblePts = SR_POINTS.slice(0, segIdx + 1);
-  const [ax, ay] = SR_POINTS[segIdx];
-  const [bx, by] = SR_POINTS[segIdx + 1];
-  const curX = ax + (bx - ax) * segFrac;
-  const curY = ay + (by - ay) * segFrac;
-  const pointsStr = [...visiblePts, [curX, curY]].map((p) => p.join(",")).join(" ");
+  const { pointsStr, curX, curY } = revealPath(SR_POINTS, t);
+  const segIdx = Math.min(Math.floor(t * (SR_POINTS.length - 1)), SR_POINTS.length - 2);
   const isResistanceNow = segIdx >= SR_BREAK_INDEX;
   const lineColor = isResistanceNow ? COLORS.gold : COLORS.blue;
 
@@ -107,52 +118,6 @@ export function PolarityDiagram() {
       <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <Circle cx={curX} cy={curY} r={3.5} fill={COLORS.gold} />
       <SvgText x={10} y={140} fill={COLORS.dim} fontSize={10}>Un niveau cassé change de rôle — le support devient résistance</SvgText>
-    </Svg>
-  );
-}
-
-export function TrendDiagram() {
-  return (
-    <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,110 L80,80 L100,90 L160,50 L180,60 L240,20" fill="none" stroke={COLORS.bull} strokeWidth={1.8} />
-      <SvgText x={70} y={72} fill={COLORS.gold} fontSize={9}>sommet+</SvgText>
-      <SvgText x={150} y={42} fill={COLORS.gold} fontSize={9}>sommet+</SvgText>
-      <SvgText x={10} y={130} fill={COLORS.text} fontSize={11}>Sommets et creux de plus en plus hauts = tendance haussière</SvgText>
-    </Svg>
-  );
-}
-
-export function TrendlineDiagram() {
-  return (
-    <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,110 L80,80 L140,95 L200,50 L260,65" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Line x1={20} y1={108} x2={260} y2={55} stroke={COLORS.blue} strokeWidth={1.4} />
-      <Circle cx={80} cy={80} r={3.5} stroke={COLORS.gold} strokeWidth={1.3} fill="none" />
-      <Circle cx={200} cy={50} r={3.5} stroke={COLORS.gold} strokeWidth={1.3} fill="none" />
-      <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Droite reliant au moins deux creux (ou sommets)</SvgText>
-    </Svg>
-  );
-}
-
-export function ChannelDiagram() {
-  return (
-    <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Line x1={20} y1={100} x2={280} y2={50} stroke={COLORS.blue} strokeWidth={1.4} />
-      <Line x1={20} y1={60} x2={280} y2={10} stroke={COLORS.blue} strokeWidth={1.4} />
-      <Path d="M30,55 L70,90 L110,45 L150,80 L190,35 L230,65" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Le prix oscille entre deux lignes parallèles</SvgText>
-    </Svg>
-  );
-}
-
-export function BreakoutDiagram() {
-  return (
-    <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Line x1={20} y1={60} x2={280} y2={60} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
-      <Path d="M30,90 L70,65 L110,80 L150,58 L170,75 L210,30" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Circle cx={150} cy={58} r={3.5} stroke={COLORS.gold} strokeWidth={1.3} fill="none" />
-      <SvgText x={155} y={50} fill={COLORS.gold} fontSize={8}>retest</SvgText>
-      <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Cassure puis retour tester le niveau avant de continuer</SvgText>
     </Svg>
   );
 }
@@ -243,34 +208,104 @@ export function MorningStarDiagram() {
   );
 }
 
+/* ---------- Palier 1 restants ---------- */
+export function TrendDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 110], [80, 80], [100, 90], [160, 50], [180, 60], [240, 20]];
+  const { pointsStr } = revealPath(pts, t);
+  return (
+    <Svg width="100%" height={140} viewBox="0 0 300 140">
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.bull} strokeWidth={1.8} />
+      <SvgText x={70} y={72} fill={COLORS.gold} fontSize={9}>sommet+</SvgText>
+      <SvgText x={150} y={42} fill={COLORS.gold} fontSize={9}>sommet+</SvgText>
+      <SvgText x={10} y={130} fill={COLORS.text} fontSize={11}>Sommets et creux de plus en plus hauts = tendance haussière</SvgText>
+    </Svg>
+  );
+}
+
+export function TrendlineDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 110], [80, 80], [140, 95], [200, 50], [260, 65]];
+  const { pointsStr } = revealPath(pts, t);
+  return (
+    <Svg width="100%" height={140} viewBox="0 0 300 140">
+      <Line x1={20} y1={108} x2={260} y2={55} stroke={COLORS.blue} strokeWidth={1.4} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Circle cx={80} cy={80} r={3.5} stroke={COLORS.gold} strokeWidth={1.3} fill="none" />
+      <Circle cx={200} cy={50} r={3.5} stroke={COLORS.gold} strokeWidth={1.3} fill="none" />
+      <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Droite reliant au moins deux creux (ou sommets)</SvgText>
+    </Svg>
+  );
+}
+
+export function ChannelDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[30, 55], [70, 90], [110, 45], [150, 80], [190, 35], [230, 65]];
+  const { pointsStr } = revealPath(pts, t);
+  return (
+    <Svg width="100%" height={140} viewBox="0 0 300 140">
+      <Line x1={20} y1={100} x2={280} y2={50} stroke={COLORS.blue} strokeWidth={1.4} />
+      <Line x1={20} y1={60} x2={280} y2={10} stroke={COLORS.blue} strokeWidth={1.4} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Le prix oscille entre deux lignes parallèles</SvgText>
+    </Svg>
+  );
+}
+
+export function BreakoutDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[30, 90], [70, 65], [110, 80], [150, 58], [170, 75], [210, 30]];
+  const { pointsStr, curX, curY } = revealPath(pts, t);
+  return (
+    <Svg width="100%" height={140} viewBox="0 0 300 140">
+      <Line x1={20} y1={60} x2={280} y2={60} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Circle cx={curX} cy={curY} r={3} fill={COLORS.gold} />
+      <SvgText x={155} y={50} fill={COLORS.gold} fontSize={8}>retest</SvgText>
+      <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Cassure puis retour tester le niveau avant de continuer</SvgText>
+    </Svg>
+  );
+}
+
+/* ---------- Palier 2 restants ---------- */
 export function InsideBarDiagram() {
+  const t = useLoopedT(2200, 600);
+  const growH = Math.min(1, t * 1.3) * 20;
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={100} y1={20} x2={100} y2={110} stroke={COLORS.bear} strokeWidth={1.6} />
       <Rect x={85} y={40} width={30} height={50} fill={COLORS.bear} />
-      <Line x1={160} y1={45} x2={160} y2={85} stroke={COLORS.bull} strokeWidth={1.6} />
-      <Rect x={148} y={55} width={24} height={20} fill={COLORS.bull} />
+      <Line x1={160} y1={65 - growH / 2} x2={160} y2={65 + growH / 2} stroke={COLORS.bull} strokeWidth={1.6} />
+      <Rect x={148} y={65 - growH / 2.6} width={24} height={growH / 1.3} fill={COLORS.bull} />
       <SvgText x={10} y={130} fill={COLORS.gold} fontSize={10}>La 2e bougie reste dans la 1ère — contraction</SvgText>
     </Svg>
   );
 }
 
 export function ThreeSoldiersDiagram() {
+  const t = useLoopedT(2400, 700);
+  const h1 = barProgress(t, 3, 0) * 35;
+  const h2 = barProgress(t, 3, 1) * 40;
+  const h3 = barProgress(t, 3, 2) * 45;
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Rect x={70} y={70} width={22} height={35} fill={COLORS.bull} />
-      <Rect x={130} y={45} width={22} height={40} fill={COLORS.bull} />
-      <Rect x={190} y={20} width={22} height={45} fill={COLORS.bull} />
+      <Rect x={70} y={105 - h1} width={22} height={h1} fill={COLORS.bull} />
+      <Rect x={130} y={85 - h2} width={22} height={h2} fill={COLORS.bull} />
+      <Rect x={190} y={65 - h3} width={22} height={h3} fill={COLORS.bull} />
       <SvgText x={10} y={130} fill={COLORS.gold} fontSize={10}>3 bougies consécutives, clôtures de plus en plus hautes</SvgText>
     </Svg>
   );
 }
 
+/* ---------- Palier 3 ---------- */
 export function HeadShouldersDiagram() {
+  const t = useLoopedT(3000, 700);
+  const pts = [[20, 100], [60, 50], [100, 100], [140, 20], [180, 100], [220, 55], [260, 100]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,100 L60,50 L100,100 L140,20 L180,100 L220,55 L260,100" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <Line x1={40} y1={100} x2={260} y2={100} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={40} y={35} fill={COLORS.gold} fontSize={9}>Tête</SvgText>
       <SvgText x={10} y={122} fill={COLORS.text} fontSize={10}>Ligne de cou reliant les deux creux</SvgText>
       <SvgText x={10} y={135} fill={COLORS.gold} fontSize={10}>Cassure de la ligne = retournement confirmé</SvgText>
@@ -279,10 +314,13 @@ export function HeadShouldersDiagram() {
 }
 
 export function DoubleTopDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 110], [70, 30], [120, 80], [170, 30], [220, 100]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={40} y1={30} x2={220} y2={30} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
-      <Path d="M20,110 L70,30 L120,80 L170,30 L220,100" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <Circle cx={70} cy={30} r={4} stroke={COLORS.gold} strokeWidth={1.5} fill="none" />
       <Circle cx={170} cy={30} r={4} stroke={COLORS.gold} strokeWidth={1.5} fill="none" />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Deux sommets au même niveau, incapables de le dépasser</SvgText>
@@ -291,127 +329,160 @@ export function DoubleTopDiagram() {
 }
 
 export function TriangleDiagram() {
+  const t = useLoopedT(2800, 700);
+  const pts = [[30, 90], [60, 40], [90, 85], [120, 55], [150, 80], [180, 60], [210, 75]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={20} x2={260} y2={70} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
       <Line x1={20} y1={110} x2={260} y2={70} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
-      <Path d="M30,90 L60,40 L90,85 L120,55 L150,80 L180,60 L210,75" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Le prix se resserre entre deux lignes qui convergent</SvgText>
     </Svg>
   );
 }
 
 export function FlagDiagram() {
+  const t = useLoopedT(2800, 700);
+  const pts = [[20, 120], [60, 20], [60, 30], [90, 45], [120, 55], [150, 65], [180, 60], [230, 15]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,120 L60,20" fill="none" stroke={COLORS.bull} strokeWidth={2} />
       <Line x1={60} y1={20} x2={180} y2={55} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
       <Line x1={60} y1={40} x2={180} y2={75} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
-      <Path d="M60,30 L90,45 L120,55 L150,65 L180,60" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Path d="M180,60 L230,15" fill="none" stroke={COLORS.bull} strokeWidth={2} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.bull} strokeWidth={2} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Mât fort, courte pause, puis continuation</SvgText>
     </Svg>
   );
 }
 
 export function WedgeDiagram() {
+  const t = useLoopedT(2800, 700);
+  const pts = [[25, 110], [60, 80], [95, 100], [130, 70], [165, 90], [200, 60], [235, 75]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={95} x2={260} y2={35} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
       <Line x1={20} y1={120} x2={260} y2={45} stroke={COLORS.blue} strokeDasharray="4,3" strokeWidth={1} />
-      <Path d="M25,110 L60,80 L95,100 L130,70 L165,90 L200,60 L235,75" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={135} fill={COLORS.gold} fontSize={10}>Biseau ascendant — souvent baissier malgré la hausse</SvgText>
     </Svg>
   );
 }
 
 export function CupHandleDiagram() {
+  const t = useLoopedT(3000, 700);
+  const pts = [[20, 40], [50, 70], [80, 108], [110, 108], [140, 40], [160, 40], [175, 58], [190, 45], [235, 15]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,40 Q80,120 140,40" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Path d="M140,40 L160,40 L175,58 L190,45" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Path d="M190,45 L235,15" fill="none" stroke={COLORS.bull} strokeWidth={2} />
-      <SvgText x={50} y={110} fill={COLORS.dim} fontSize={9}>Tasse</SvgText>
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <SvgText x={50} y={122} fill={COLORS.dim} fontSize={9}>Tasse</SvgText>
       <SvgText x={155} y={75} fill={COLORS.dim} fontSize={9}>Anse</SvgText>
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Continuation haussière après une pause en U</SvgText>
     </Svg>
   );
 }
 
+/* ---------- Palier 4 ---------- */
 export function RSIDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 70], [60, 40], [100, 25], [140, 60], [180, 100], [220, 80], [260, 50]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={30} x2={280} y2={30} stroke={COLORS.bear} strokeDasharray="4,3" strokeWidth={1} />
       <SvgText x={224} y={26} fill={COLORS.bear} fontSize={9}>70 — surachat</SvgText>
       <Line x1={20} y1={95} x2={280} y2={95} stroke={COLORS.bull} strokeDasharray="4,3" strokeWidth={1} />
       <SvgText x={20} y={110} fill={COLORS.bull} fontSize={9}>30 — survente</SvgText>
-      <Path d="M20,70 L60,40 L100,25 L140,60 L180,100 L220,80 L260,50" fill="none" stroke={COLORS.gold} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.gold} strokeWidth={1.8} />
     </Svg>
   );
 }
 
 export function MADiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 100], [60, 95], [100, 90], [140, 75], [180, 65], [220, 50], [260, 42]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Path d="M20,110 L60,90 L100,100 L140,60 L180,70 L220,30 L260,40" fill="none" stroke={COLORS.text} strokeWidth={1.6} opacity={0.6} />
-      <Path d="M20,100 L60,95 L100,90 L140,75 L180,65 L220,50 L260,42" fill="none" stroke={COLORS.gold} strokeWidth={2} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.gold} strokeWidth={2} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>La moyenne (dorée) lisse le prix brut</SvgText>
     </Svg>
   );
 }
 
 export function MACDDiagram() {
+  const t = useLoopedT(2800, 700);
+  const heights = [10, 18, 22, 14, -8, -16, -10, 6];
+  const sigPts = [[30, 50], [80, 42], [130, 55], [180, 68], [230, 60]];
+  const { pointsStr } = revealPath(sigPts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={70} x2={280} y2={70} stroke={COLORS.dim} strokeWidth={1} />
-      {[10, 18, 22, 14, -8, -16, -10, 6].map((h, i) => (
-        <Rect key={i} x={40 + i * 30} y={h >= 0 ? 70 - h : 70} width={14} height={Math.abs(h)} fill={h >= 0 ? COLORS.bull : COLORS.bear} />
-      ))}
-      <Path d="M30,50 L80,42 L130,55 L180,68 L230,60" fill="none" stroke={COLORS.gold} strokeWidth={1.5} />
+      {heights.map((h, i) => {
+        const p = barProgress(t, heights.length, i);
+        const hh = Math.abs(h) * p;
+        return <Rect key={i} x={40 + i * 30} y={h >= 0 ? 70 - hh : 70} width={14} height={hh} fill={h >= 0 ? COLORS.bull : COLORS.bear} />;
+      })}
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.gold} strokeWidth={1.5} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Croisement des lignes + histogramme = signal</SvgText>
     </Svg>
   );
 }
 
 export function BollingerDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 80], [60, 65], [100, 88], [140, 55], [180, 82], [220, 55], [260, 72]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Path d="M20,50 L60,30 L100,60 L140,20 L180,55 L220,25 L260,45" fill="none" stroke={COLORS.blue} strokeWidth={1.2} opacity={0.7} />
       <Path d="M20,110 L60,105 L100,115 L140,95 L180,110 L220,90 L260,100" fill="none" stroke={COLORS.blue} strokeWidth={1.2} opacity={0.7} />
-      <Path d="M20,80 L60,65 L100,88 L140,55 L180,82 L220,55 L260,72" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Le prix reste presque toujours entre les bandes</SvgText>
     </Svg>
   );
 }
 
 export function StochDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 80], [60, 30], [100, 40], [140, 90], [180, 105], [220, 60], [260, 35]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={25} x2={280} y2={25} stroke={COLORS.bear} strokeDasharray="4,3" strokeWidth={1} />
       <Line x1={20} y1={100} x2={280} y2={100} stroke={COLORS.bull} strokeDasharray="4,3" strokeWidth={1} />
-      <Path d="M20,80 L60,30 L100,40 L140,90 L180,105 L220,60 L260,35" fill="none" stroke={COLORS.gold} strokeWidth={1.6} />
       <Path d="M20,85 L60,45 L100,35 L140,80 L180,100 L220,75 L260,45" fill="none" stroke={COLORS.text} strokeWidth={1.2} opacity={0.6} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.gold} strokeWidth={1.6} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Deux lignes (%K, %D) qui se croisent</SvgText>
     </Svg>
   );
 }
 
 export function ATRDiagram() {
+  const t = useLoopedT(2400, 700);
+  const heights = [8, 14, 22, 35, 28, 16, 10];
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      {[8, 14, 22, 35, 28, 16, 10].map((h, i) => (
-        <Rect key={i} x={30 + i * 34} y={110 - h} width={18} height={h} fill={COLORS.blue} opacity={0.7} />
-      ))}
+      {heights.map((h, i) => {
+        const p = barProgress(t, heights.length, i);
+        return <Rect key={i} x={30 + i * 34} y={110 - h * p} width={18} height={h * p} fill={COLORS.blue} opacity={0.7} />;
+      })}
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Barres plus hautes = marché plus volatil</SvgText>
     </Svg>
   );
 }
 
 export function FiboDiagram() {
+  const t = useLoopedT(2600, 700);
   const levels = [
     { y: 25, l: "0%" }, { y: 45, l: "23.6%" }, { y: 62, l: "38.2%" },
     { y: 75, l: "50%" }, { y: 88, l: "61.8%" }, { y: 110, l: "100%" },
   ];
+  const pts = [[30, 110], [90, 25], [160, 88]];
+  const { pointsStr, curX, curY } = revealPath(pts, t);
   return (
     <Svg width="100%" height={150} viewBox="0 0 300 150">
       {levels.map((lv, i) => (
@@ -420,143 +491,190 @@ export function FiboDiagram() {
           <SvgText x={250} y={lv.y - 3} fill={i === 4 ? COLORS.gold : COLORS.dim} fontSize={8}>{lv.l}</SvgText>
         </React.Fragment>
       ))}
-      <Path d="M30,110 L90,25 L160,88" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Circle cx={curX} cy={curY} r={3} fill={COLORS.gold} />
       <SvgText x={10} y={140} fill={COLORS.text} fontSize={10}>Le prix corrige souvent près de 61.8%</SvgText>
     </Svg>
   );
 }
 
 export function FiboExtDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[30, 100], [80, 30], [130, 75], [200, 10]];
+  const { pointsStr, curX, curY } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={100} x2={280} y2={100} stroke={COLORS.blue} strokeDasharray="3,3" strokeWidth={1} opacity={0.7} />
       <SvgText x={250} y={97} fill={COLORS.dim} fontSize={8}>100%</SvgText>
       <Line x1={20} y1={30} x2={280} y2={30} stroke={COLORS.gold} strokeDasharray="3,3" strokeWidth={1} />
       <SvgText x={240} y={27} fill={COLORS.gold} fontSize={8}>161.8%</SvgText>
-      <Path d="M30,100 L80,30 L130,75 L200,10" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Circle cx={curX} cy={curY} r={3} fill={COLORS.gold} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Objectifs de prix au-delà du mouvement initial</SvgText>
     </Svg>
   );
 }
 
+/* ---------- Palier 5 ---------- */
 export function VolumeDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pricePts = [[20, 60], [60, 50], [100, 65], [140, 40], [180, 55], [220, 35], [260, 45]];
+  const { pointsStr } = revealPath(pricePts, t);
+  const bars = [8, 14, 10, 22, 12, 26, 15];
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,60 L60,50 L100,65 L140,40 L180,55 L220,35 L260,45" fill="none" stroke={COLORS.text} strokeWidth={1.6} />
-      {[8, 14, 10, 22, 12, 26, 15].map((h, i) => (
-        <Rect key={i} x={30 + i * 34} y={130 - h} width={16} height={h} fill={i === 5 ? COLORS.gold : COLORS.blue} opacity={0.7} />
-      ))}
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.6} />
+      {bars.map((h, i) => {
+        const p = barProgress(t, bars.length, i);
+        return <Rect key={i} x={30 + i * 34} y={130 - h * p} width={16} height={h * p} fill={i === 5 ? COLORS.gold : COLORS.blue} opacity={0.7} />;
+      })}
       <SvgText x={10} y={20} fill={COLORS.text} fontSize={10}>Un pic de volume confirme un mouvement</SvgText>
     </Svg>
   );
 }
 
 export function VWAPDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 90], [60, 70], [100, 85], [140, 55], [180, 75], [220, 45], [260, 60]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,90 L60,70 L100,85 L140,55 L180,75 L220,45 L260,60" fill="none" stroke={COLORS.text} strokeWidth={1.4} opacity={0.6} />
-      <Path d="M20,80 L260,55" fill="none" stroke={COLORS.gold} strokeWidth={2} />
+      <Line x1={20} y1={80} x2={260} y2={55} stroke={COLORS.gold} strokeWidth={2} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.4} opacity={0.7} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Prix moyen pondéré par le volume de la séance</SvgText>
     </Svg>
   );
 }
 
 export function VolumeProfileDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pricePts = [[40, 110], [80, 90], [120, 100], [160, 60], [200, 75], [240, 40]];
+  const { pointsStr } = revealPath(pricePts, t);
+  const bars = [10, 18, 26, 14, 20, 8];
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M40,110 L80,90 L120,100 L160,60 L200,75 L240,40" fill="none" stroke={COLORS.text} strokeWidth={1.6} />
-      {[10, 18, 26, 14, 20, 8].map((w, i) => (
-        <Rect key={i} x={260} y={20 + i * 17} width={w} height={12} fill={i === 2 ? COLORS.gold : COLORS.blue} opacity={0.7} />
-      ))}
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.6} />
+      {bars.map((w, i) => {
+        const p = barProgress(t, bars.length, i);
+        return <Rect key={i} x={260} y={20 + i * 17} width={w * p} height={12} fill={i === 2 ? COLORS.gold : COLORS.blue} opacity={0.7} />;
+      })}
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Concentration du volume par niveau de prix</SvgText>
     </Svg>
   );
 }
 
 export function LiquidityZonesDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 100], [70, 40], [120, 90], [170, 35], [220, 95]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,100 L70,40 L120,90 L170,35 L220,95" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <Line x1={40} y1={40} x2={200} y2={35} stroke={COLORS.bear} strokeDasharray="3,3" strokeWidth={1} />
       <SvgText x={205} y={32} fill={COLORS.bear} fontSize={9}>liquidité</SvgText>
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Stops accumulés au-dessus des sommets égaux</SvgText>
     </Svg>
   );
 }
 
 export function OrderFlowDiagram() {
+  const t = useLoopedT(2400, 700);
+  const heights = [12, -8, 18, -14, 22, -6, 10];
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={70} x2={280} y2={70} stroke={COLORS.dim} strokeWidth={1} />
-      {[12, -8, 18, -14, 22, -6, 10].map((h, i) => (
-        <Rect key={i} x={30 + i * 34} y={h >= 0 ? 70 - h : 70} width={16} height={Math.abs(h)} fill={h >= 0 ? COLORS.bull : COLORS.bear} />
-      ))}
+      {heights.map((h, i) => {
+        const p = barProgress(t, heights.length, i);
+        const hh = Math.abs(h) * p;
+        return <Rect key={i} x={30 + i * 34} y={h >= 0 ? 70 - hh : 70} width={16} height={hh} fill={h >= 0 ? COLORS.bull : COLORS.bear} />;
+      })}
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Déséquilibre entre ordres acheteurs et vendeurs</SvgText>
     </Svg>
   );
 }
 
+/* ---------- Palier 6 ---------- */
 export function OrderBlockDiagram() {
+  const t = useLoopedT(2400, 700);
+  const pts = [[96, 80], [130, 60], [160, 30], [200, 10]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Rect x={70} y={60} width={26} height={20} fill={COLORS.bear} opacity={0.9} />
-      <Path d="M96,80 L130,60 L160,30 L200,10" fill="none" stroke={COLORS.bull} strokeWidth={2} />
       <Rect x={65} y={55} width={36} height={30} fill="none" stroke={COLORS.gold} strokeWidth={1.2} strokeDasharray="3,3" />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.bull} strokeWidth={2} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Dernière bougie opposée avant le mouvement fort</SvgText>
     </Svg>
   );
 }
 
 export function FVGDiagram() {
+  const t = useLoopedT(2600, 700);
+  const h1 = Math.min(1, barProgress(t, 3, 0)) * 30;
+  const h2 = Math.min(1, barProgress(t, 3, 1)) * 50;
+  const h3 = Math.min(1, barProgress(t, 3, 2)) * 40;
+  const gapOpacity = barProgress(t, 3, 2);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Rect x={70} y={80} width={26} height={30} fill={COLORS.bull} />
-      <Rect x={110} y={30} width={26} height={50} fill={COLORS.bull} />
-      <Rect x={150} y={20} width={26} height={40} fill={COLORS.bull} />
-      <Rect x={98} y={55} width={40} height={25} fill={COLORS.gold} opacity={0.25} />
+      <Rect x={70} y={110 - h1} width={26} height={h1} fill={COLORS.bull} />
+      <Rect x={110} y={80 - h2} width={26} height={h2} fill={COLORS.bull} />
+      <Rect x={150} y={60 - h3} width={26} height={h3} fill={COLORS.bull} />
+      <Rect x={98} y={55} width={40} height={25} fill={COLORS.gold} opacity={0.25 * gapOpacity} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Vide de prix entre 3 bougies — souvent comblé plus tard</SvgText>
     </Svg>
   );
 }
 
 export function LiquiditySweepDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[30, 90], [80, 50], [110, 60], [140, 20], [170, 75]];
+  const { pointsStr, curX, curY } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={40} x2={280} y2={40} stroke={COLORS.bear} strokeDasharray="3,3" strokeWidth={1} />
-      <Path d="M30,90 L80,50 L110,60 L140,20 L170,75" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Circle cx={140} cy={20} r={4} stroke={COLORS.gold} strokeWidth={1.5} fill="none" />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      {t > 0.55 && <Circle cx={140} cy={20} r={4} stroke={COLORS.gold} strokeWidth={1.5} fill="none" />}
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Mèche qui dépasse le niveau puis revient — piège à liquidité</SvgText>
     </Svg>
   );
 }
 
 export function BreakerBlockDiagram() {
+  const t = useLoopedT(2400, 700);
+  const pts = [[86, 45], [130, 80], [170, 60], [220, 100]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Rect x={60} y={30} width={26} height={20} fill={COLORS.bull} opacity={0.5} />
-      <Path d="M86,45 L130,80 L170,60 L220,100" fill="none" stroke={COLORS.bear} strokeWidth={2} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.bear} strokeWidth={2} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Zone cassée qui change de rôle (support ↔ résistance)</SvgText>
     </Svg>
   );
 }
 
 export function ChochBosDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[20, 100], [60, 60], [100, 80], [140, 30], [180, 90]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,100 L60,60 L100,80 L140,30 L180,90" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <Line x1={100} y1={80} x2={200} y2={80} stroke={COLORS.gold} strokeDasharray="3,3" strokeWidth={1} />
       <SvgText x={205} y={83} fill={COLORS.gold} fontSize={9}>CHoCH</SvgText>
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>La structure casse dans le sens opposé — retournement</SvgText>
     </Svg>
   );
 }
 
 export function PremiumDiscountDiagram() {
+  const t = useLoopedT(3000, 700);
+  const cursorY = 20 + t * 80;
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Rect x={20} y={20} width={260} height={40} fill={COLORS.bear} opacity={0.15} />
       <Rect x={20} y={60} width={260} height={40} fill={COLORS.bull} opacity={0.15} />
       <Line x1={20} y1={60} x2={280} y2={60} stroke={COLORS.dim} strokeWidth={1} />
+      <Line x1={20} y1={cursorY} x2={280} y2={cursorY} stroke={COLORS.gold} strokeWidth={1.6} />
       <SvgText x={225} y={35} fill={COLORS.bear} fontSize={9}>premium</SvgText>
       <SvgText x={225} y={80} fill={COLORS.bull} fontSize={9}>discount</SvgText>
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Acheter dans le discount, vendre dans le premium</SvgText>
@@ -565,12 +683,15 @@ export function PremiumDiscountDiagram() {
 }
 
 export function KillZonesDiagram() {
+  const t = useLoopedT(3000, 700);
+  const cursorX = 20 + t * 250;
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={60} x2={280} y2={60} stroke={COLORS.dim} strokeWidth={1} />
       <Rect x={30} y={30} width={60} height={60} fill={COLORS.blue} opacity={0.15} />
       <Rect x={110} y={30} width={70} height={60} fill={COLORS.gold} opacity={0.2} />
       <Rect x={200} y={30} width={70} height={60} fill={COLORS.bull} opacity={0.15} />
+      <Line x1={cursorX} y1={20} x2={cursorX} y2={100} stroke={COLORS.text} strokeWidth={1.4} />
       <SvgText x={35} y={100} fill={COLORS.text} fontSize={8}>Asie</SvgText>
       <SvgText x={115} y={100} fill={COLORS.text} fontSize={8}>Londres</SvgText>
       <SvgText x={205} y={100} fill={COLORS.text} fontSize={8}>New York</SvgText>
@@ -580,35 +701,48 @@ export function KillZonesDiagram() {
 }
 
 export function OTEDiagram() {
+  const t = useLoopedT(2400, 700);
+  const pts = [[30, 100], [100, 40], [160, 70]];
+  const { pointsStr, curX, curY } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={100} x2={280} y2={100} stroke={COLORS.blue} strokeDasharray="3,3" strokeWidth={1} opacity={0.6} />
       <Line x1={20} y1={40} x2={280} y2={40} stroke={COLORS.blue} strokeDasharray="3,3" strokeWidth={1} opacity={0.6} />
       <Rect x={20} y={55} width={260} height={25} fill={COLORS.gold} opacity={0.2} />
       <SvgText x={225} y={70} fill={COLORS.gold} fontSize={8}>OTE 61.8-79%</SvgText>
-      <Path d="M30,100 L100,40 L160,70" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Circle cx={curX} cy={curY} r={3} fill={COLORS.gold} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Zone d'entrée idéale sur le retracement</SvgText>
     </Svg>
   );
 }
 
+/* ---------- Palier 7 ---------- */
 export function CorrelationDiagram() {
+  const t = useLoopedT(2800, 700);
+  const goldPts = [[20, 40], [70, 55], [120, 35], [170, 60], [220, 30], [270, 50]];
+  const bluePts = [[20, 90], [70, 75], [120, 95], [170, 70], [220, 100], [270, 80]];
+  const gold = revealPath(goldPts, t);
+  const blue = revealPath(bluePts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,40 L70,55 L120,35 L170,60 L220,30 L270,50" fill="none" stroke={COLORS.gold} strokeWidth={1.8} />
-      <Path d="M20,90 L70,75 L120,95 L170,70 L220,100 L270,80" fill="none" stroke={COLORS.blue} strokeWidth={1.8} />
+      <Polyline points={gold.pointsStr} fill="none" stroke={COLORS.gold} strokeWidth={1.8} />
+      <Polyline points={blue.pointsStr} fill="none" stroke={COLORS.blue} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Deux actifs qui évoluent en miroir (ex. or et dollar)</SvgText>
     </Svg>
   );
 }
 
 export function SessionsDiagram() {
+  const t = useLoopedT(3000, 700);
+  const cursorX = 20 + t * 250;
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={70} x2={280} y2={70} stroke={COLORS.dim} strokeWidth={1} />
       <Rect x={20} y={50} width={70} height={40} fill={COLORS.blue} opacity={0.15} />
       <Rect x={90} y={50} width={90} height={40} fill={COLORS.text} opacity={0.1} />
       <Rect x={180} y={50} width={100} height={40} fill={COLORS.bull} opacity={0.15} />
+      <Line x1={cursorX} y1={40} x2={cursorX} y2={100} stroke={COLORS.gold} strokeWidth={1.4} />
       <SvgText x={35} y={45} fill={COLORS.text} fontSize={8}>Asie</SvgText>
       <SvgText x={115} y={45} fill={COLORS.text} fontSize={8}>Londres</SvgText>
       <SvgText x={210} y={45} fill={COLORS.text} fontSize={8}>New York</SvgText>
@@ -618,21 +752,27 @@ export function SessionsDiagram() {
 }
 
 export function NewsDiagram() {
+  const t = useLoopedT(2800, 700);
+  const pts = [[20, 70], [100, 68], [120, 90], [140, 20], [160, 95], [180, 50], [260, 45]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Path d="M20,70 L100,68 L120,90 L140,20 L160,95 L180,50 L260,45" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <Line x1={140} y1={10} x2={140} y2={110} stroke={COLORS.bear} strokeDasharray="3,3" strokeWidth={1} />
       <SvgText x={144} y={20} fill={COLORS.bear} fontSize={9}>annonce</SvgText>
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Une news majeure provoque un pic de volatilité soudain</SvgText>
     </Svg>
   );
 }
 
 export function SentimentDiagram() {
+  const t = useLoopedT(2200, 700);
+  const w1 = Math.min(1, t * 1.3) * 180;
+  const w2 = Math.min(1, t * 1.3) * 80;
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      <Rect x={20} y={50} width={180} height={20} fill={COLORS.bull} />
-      <Rect x={200} y={50} width={80} height={20} fill={COLORS.bear} />
+      <Rect x={20} y={50} width={w1} height={20} fill={COLORS.bull} />
+      <Rect x={280 - w2} y={50} width={w2} height={20} fill={COLORS.bear} />
       <SvgText x={30} y={45} fill={COLORS.bull} fontSize={9}>Acheteurs 70%</SvgText>
       <SvgText x={205} y={45} fill={COLORS.bear} fontSize={9}>Vendeurs 30%</SvgText>
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Positionnement dominant des grands acteurs du marché</SvgText>
@@ -640,35 +780,45 @@ export function SentimentDiagram() {
   );
 }
 
+/* ---------- Palier 8 ---------- */
 export function ConfluenceSRDiagram() {
+  const t = useLoopedT(2400, 700);
+  const pts = [[30, 40], [80, 95], [130, 50]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Line x1={20} y1={100} x2={280} y2={100} stroke={COLORS.blue} strokeDasharray="3,3" strokeWidth={1} />
-      <Path d="M30,40 L80,95 L130,50" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
-      <Rect x={58} y={80} width={14} height={14} fill={COLORS.bull} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      {t > 0.5 && <Rect x={58} y={80} width={14} height={14} fill={COLORS.bull} />}
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Support + pin bar au même endroit = confluence</SvgText>
     </Svg>
   );
 }
 
 export function ConfluenceICTFiboDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[30, 110], [100, 70], [180, 20]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Rect x={90} y={60} width={26} height={20} fill={COLORS.bear} opacity={0.7} />
       <Line x1={20} y1={70} x2={280} y2={70} stroke={COLORS.gold} strokeDasharray="3,3" strokeWidth={1} />
       <SvgText x={225} y={67} fill={COLORS.gold} fontSize={8}>OTE 61.8%</SvgText>
-      <Path d="M30,110 L100,70 L180,20" fill="none" stroke={COLORS.text} strokeWidth={1.8} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.text} strokeWidth={1.8} />
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Order block et zone Fibonacci alignés = confluence forte</SvgText>
     </Svg>
   );
 }
 
 export function MultiTFDiagram() {
+  const t = useLoopedT(2600, 700);
+  const pts = [[200, 50], [215, 45], [225, 55], [240, 35], [255, 50]];
+  const { pointsStr } = revealPath(pts, t);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
       <Path d="M20,90 L60,60 L100,75 L140,30 L180,50" fill="none" stroke={COLORS.text} strokeWidth={1.4} opacity={0.5} />
       <SvgText x={10} y={20} fill={COLORS.dim} fontSize={8}>Timeframe supérieur — tendance</SvgText>
-      <Path d="M200,50 L215,45 L225,55 L240,35 L255,50" fill="none" stroke={COLORS.gold} strokeWidth={2} />
+      <Polyline points={pointsStr} fill="none" stroke={COLORS.gold} strokeWidth={2} />
       <SvgText x={195} y={100} fill={COLORS.dim} fontSize={8}>Timeframe inférieur — entrée</SvgText>
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Direction sur le grand cadre, entrée sur le petit</SvgText>
     </Svg>
@@ -676,14 +826,18 @@ export function MultiTFDiagram() {
 }
 
 export function CustomSystemDiagram() {
+  const t = useLoopedT(2700, 700);
   return (
     <Svg width="100%" height={140} viewBox="0 0 300 140">
-      {[0, 1, 2].map((i) => (
-        <React.Fragment key={i}>
-          <Rect x={20} y={20 + i * 35} width={16} height={16} fill="none" stroke={COLORS.gold} strokeWidth={1.5} />
-          <Line x1={46} y1={28 + i * 35} x2={260} y2={28 + i * 35} stroke={COLORS.dim} strokeWidth={1} />
-        </React.Fragment>
-      ))}
+      {[0, 1, 2].map((i) => {
+        const p = barProgress(t, 3, i);
+        return (
+          <React.Fragment key={i}>
+            <Rect x={20} y={20 + i * 35} width={16} height={16} fill="none" stroke={COLORS.gold} strokeWidth={1.5} opacity={p > 0 ? 1 : 0.25} />
+            <Line x1={46} y1={28 + i * 35} x2={46 + 214 * p} y2={28 + i * 35} stroke={COLORS.dim} strokeWidth={1} />
+          </React.Fragment>
+        );
+      })}
       <SvgText x={10} y={128} fill={COLORS.text} fontSize={10}>Ta propre check-list de règles, combinées à ta façon</SvgText>
     </Svg>
   );

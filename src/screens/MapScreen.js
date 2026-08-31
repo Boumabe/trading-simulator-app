@@ -1,14 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import COLORS from "../constants/palette";
 import { LEVELS, RECOMMENDED_BY_LEVEL } from "../data/levels";
 import { useLang } from "../i18n";
+import { localizedLevelName } from "../i18n/levelNames";
+import { getCompletedIds } from "../utils/progress";
+export default function MapScreen({ level, onBack, onOpenLevel, onOpenQuiz, onOpenTool, onOpenBook, onOpenSettings }) {
 
-export default function MapScreen({ level, onBack, onOpenLevel, onOpenQuiz, onOpenTool, onOpenBook }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [confirmLvl, setConfirmLvl] = useState(null);
+  const [completedIds, setCompletedIds] = useState(new Set());
+  const [loaded, setLoaded] = useState(false);
   const recommendedId = RECOMMENDED_BY_LEVEL[level] || 1;
-  const statusFor = (lvl) => (lvl.strategyId || lvl.type ? "active" : "locked");
+
+  useEffect(() => {
+    (async () => {
+      const ids = await getCompletedIds();
+      setCompletedIds(new Set(ids));
+      setLoaded(true);
+    })();
+  }, []);
+
+  const isUnlocked = (lvl) => lvl.id === 1 || lvl.id === recommendedId || completedIds.has(lvl.id - 1);
+  const statusFor = (lvl) => (isUnlocked(lvl) ? "active" : "locked");
 
   let lastTier = null;
 
@@ -18,45 +32,59 @@ export default function MapScreen({ level, onBack, onOpenLevel, onOpenQuiz, onOp
         <TouchableOpacity onPress={onBack} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
           <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{t("map_title")}</Text>
-        <View style={{ width: 24 }} />
+                <Text style={styles.title}>{t("map_title")}</Text>
+        <TouchableOpacity onPress={onOpenSettings} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
+          <Text style={{ fontSize: 18 }}>⚙️</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 100 }}>
-        <Text style={styles.sub}>{LEVELS.length} {t("map_sub")}</Text>
+      {!loaded ? (
+        <View style={{ flex: 1 }} />
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 100 }}>
+          <Text style={styles.sub}>{LEVELS.length} {t("map_sub")}</Text>
 
-        {LEVELS.map((lvl, i) => {
-          const status = statusFor(lvl);
-          const isRec = lvl.id === recommendedId && recommendedId !== 1;
-          const showHeader = lvl.tier !== lastTier;
-          lastTier = lvl.tier;
-          const align = i % 2 === 0 ? "flex-start" : "flex-end";
-          return (
-            <View key={lvl.id}>
-              {showHeader && <Text style={styles.tierHeader}>{lvl.tier}</Text>}
-              <View style={{ alignItems: align, marginBottom: 14 }}>
-                <TouchableOpacity
-                  disabled={status === "locked"}
-                  onPress={() => setConfirmLvl(lvl)}
-                  style={[styles.node, { borderColor: status === "active" ? COLORS.gold : COLORS.line }]}
-                >
-                  <View style={[styles.circle, { borderColor: status === "active" ? COLORS.gold : COLORS.line }]}>
-                    <Text style={{ color: status === "active" ? COLORS.gold : COLORS.dim, fontWeight: "700", fontSize: 12 }}>
-                      {status === "locked" ? "○" : lvl.id}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.name, { color: status === "locked" ? COLORS.dim : COLORS.text }]}>{lvl.name}</Text>
-                    {lvl.type === "quiz" && <Text style={styles.badge}>{t("map_badge_quiz")}</Text>}
-                    {lvl.type === "tool" && <Text style={styles.badge}>{t("map_badge_tool")}</Text>}
-                    {isRec && <Text style={styles.rec}>{t("map_recommended")}</Text>}
-                  </View>
-                </TouchableOpacity>
+          {LEVELS.map((lvl, i) => {
+            const status = statusFor(lvl);
+            const isDone = completedIds.has(lvl.id);
+            const isRec = lvl.id === recommendedId && recommendedId !== 1;
+            const showHeader = lvl.tier !== lastTier;
+            lastTier = lvl.tier;
+            const align = i % 2 === 0 ? "flex-start" : "flex-end";
+            return (
+              <View key={lvl.id}>
+                {showHeader && <Text style={styles.tierHeader}>{lvl.tier}</Text>}
+                <View style={{ alignItems: align, marginBottom: 14 }}>
+                  <TouchableOpacity
+                    disabled={status === "locked"}
+                    onPress={() => setConfirmLvl(lvl)}
+                    style={[styles.node, { borderColor: status === "active" ? COLORS.gold : COLORS.line }]}
+                  >
+                    <View style={{ position: "relative" }}>
+                      <View style={[styles.circle, { borderColor: status === "active" ? COLORS.gold : COLORS.line }]}>
+                        <Text style={{ color: status === "active" ? COLORS.gold : COLORS.dim, fontWeight: "700", fontSize: 12 }}>
+                          {status === "locked" ? "○" : lvl.id}
+                        </Text>
+                      </View>
+                      {isDone && (
+                        <View style={styles.doneBadge}>
+                          <Text style={{ color: "#0A0E17", fontSize: 9, fontWeight: "800" }}>✓</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.name, { color: status === "locked" ? COLORS.dim : COLORS.text }]}>{localizedLevelName(lvl.id, lang)}</Text>
+                      {lvl.type === "quiz" && <Text style={styles.badge}>{t("map_badge_quiz")}</Text>}
+                      {lvl.type === "tool" && <Text style={styles.badge}>{t("map_badge_tool")}</Text>}
+                      {isRec && <Text style={styles.rec}>{t("map_recommended")}</Text>}
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          );
-        })}
-      </ScrollView>
+            );
+          })}
+        </ScrollView>
+      )}
 
       <TouchableOpacity style={styles.bookFab} onPress={onOpenBook}>
         <Text style={{ fontSize: 20 }}>📖</Text>
@@ -66,7 +94,7 @@ export default function MapScreen({ level, onBack, onOpenLevel, onOpenQuiz, onOp
         <View style={styles.overlay}>
           <View style={styles.card}>
             <Text style={styles.cardEyebrow}>{confirmLvl.id}</Text>
-            <Text style={styles.cardTitle}>{confirmLvl.name}</Text>
+            <Text style={styles.cardTitle}>{localizedLevelName(confirmLvl.id, lang)}</Text>
             {confirmLvl.type === "quiz" ? (
               <>
                 <Text style={styles.cardText}>{t("map_quiz_desc")}</Text>
@@ -110,6 +138,7 @@ const styles = StyleSheet.create({
   tierHeader: { color: COLORS.gold, fontSize: 10, letterSpacing: 1.5, marginTop: 14, marginBottom: 10 },
   node: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderRadius: 10, padding: 10, maxWidth: 250, backgroundColor: COLORS.panel },
   circle: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  doneBadge: { position: "absolute", bottom: -2, right: -2, width: 15, height: 15, borderRadius: 8, backgroundColor: COLORS.bull, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: COLORS.panel },
   name: { fontSize: 12.5, fontWeight: "600" },
   badge: { color: COLORS.blue, fontSize: 9, fontWeight: "700", marginTop: 3, letterSpacing: 0.5 },
   rec: { color: COLORS.gold, fontSize: 9, marginTop: 3 },
