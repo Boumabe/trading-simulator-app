@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tradingsimulatorapp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/images/icon.png"
     },
@@ -33,7 +33,13 @@
           "imageWidth": 200
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

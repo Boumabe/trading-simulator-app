@@ -1,0 +1,74 @@
+import type { QuizData } from '../types';
+
+export const QUIZ_DATA: QuizData = {
+  atr: {
+    fr: [
+      { prompt: "Le graphique montre des barres ATR qui grandissent fortement sur les dernières séances. Que dois-tu ajuster ?", visual: "atr", options: ["Réduire la taille de mon stop-loss", "Élargir mon stop-loss pour laisser respirer le prix", "Ignorer l'ATR, il ne sert à rien", "Fermer toutes mes positions"], correctIndex: 1, explanation: "Un ATR élevé signale une volatilité accrue — un stop trop serré serait déclenché par le bruit normal du marché, pas par une vraie invalidation." },
+      { prompt: "L'ATR descend et les barres sont de plus en plus petites. Qu'est-ce que ça suggère généralement ?", visual: "atr", options: ["Un mouvement violent est en cours", "Le marché se calme, souvent avant une phase de compression", "Le prix va forcément monter", "Rien, l'ATR ne mesure pas ça"], correctIndex: 1, explanation: "Une baisse de l'ATR reflète une baisse de volatilité — souvent une phase de consolidation qui précède parfois un nouveau mouvement." },
+    ],
+    en: [
+      { prompt: "The chart shows ATR bars growing strongly over recent sessions. What should you adjust?", visual: "atr", options: ["Reduce my stop-loss size", "Widen my stop-loss to give price room to breathe", "Ignore the ATR, it's useless", "Close all my positions"], correctIndex: 1, explanation: "A high ATR signals increased volatility — a stop that's too tight would get triggered by normal market noise, not a real invalidation." },
+      { prompt: "The ATR is falling and the bars are getting smaller. What does that usually suggest?", visual: "atr", options: ["A violent move is underway", "The market is calming down, often before a compression phase", "The price will definitely rise", "Nothing, the ATR doesn't measure that"], correctIndex: 1, explanation: "A falling ATR reflects falling volatility — often a consolidation phase that sometimes precedes a new move." },
+    ],
+    es: [
+      { prompt: "El gráfico muestra barras ATR que crecen fuertemente en las últimas sesiones. ¿Qué debes ajustar?", visual: "atr", options: ["Reducir el tamaño de mi stop-loss", "Ampliar mi stop-loss para dar espacio al precio", "Ignorar el ATR, no sirve para nada", "Cerrar todas mis posiciones"], correctIndex: 1, explanation: "Un ATR alto señala mayor volatilidad — un stop demasiado ajustado se activaría por el ruido normal del mercado, no por una invalidación real." },
+      { prompt: "El ATR baja y las barras son cada vez más pequeñas. ¿Qué suele sugerir esto?", visual: "atr", options: ["Un movimiento violento está en curso", "El mercado se calma, a menudo antes de una fase de compresión", "El precio subirá con seguridad", "Nada, el ATR no mide eso"], correctIndex: 1, explanation: "Un ATR a la baja refleja una menor volatilidad — a menudo una fase de consolidación que a veces precede a un nuevo movimiento." },
+    ],
+  },
+  orderflow: {
+    fr: [
+      { prompt: "Le graphique de delta montre des barres vertes bien plus hautes que les rouges sur la période récente. Que ça indique ?", visual: "orderflow", options: ["Les vendeurs dominent nettement", "Les acheteurs dominent nettement", "Le marché est parfaitement équilibré", "Impossible à dire"], correctIndex: 1, explanation: "Des barres vertes dominantes signalent que le volume acheteur dépasse largement le volume vendeur — une pression haussière." },
+      { prompt: "Le delta alterne rapidement entre vert et rouge sans dominance claire. Qu'est-ce que ça décrit le mieux ?", visual: "orderflow", options: ["Une tendance forte et confirmée", "Une indécision entre acheteurs et vendeurs", "Un signal d'achat évident", "Un signal de vente évident"], correctIndex: 1, explanation: "Une alternance sans dominance nette reflète un marché indécis — souvent un moment à éviter plutôt qu'à trader." },
+    ],
+    en: [
+      { prompt: "The delta chart shows green bars much taller than red ones over the recent period. What does that indicate?", visual: "orderflow", options: ["Sellers clearly dominate", "Buyers clearly dominate", "The market is perfectly balanced", "Impossible to tell"], correctIndex: 1, explanation: "Dominant green bars signal that buying volume clearly exceeds selling volume — bullish pressure." },
+      { prompt: "The delta rapidly alternates between green and red with no clear dominance. What does that best describe?", visual: "orderflow", options: ["A strong, confirmed trend", "Indecision between buyers and sellers", "An obvious buy signal", "An obvious sell signal"], correctIndex: 1, explanation: "Alternation without clear dominance reflects an indecisive market — often a moment to avoid rather than trade." },
+    ],
+    es: [
+      { prompt: "El gráfico de delta muestra barras verdes mucho más altas que las rojas en el período reciente. ¿Qué indica esto?", visual: "orderflow", options: ["Los vendedores dominan claramente", "Los compradores dominan claramente", "El mercado está perfectamente equilibrado", "Imposible saberlo"], correctIndex: 1, explanation: "Barras verdes dominantes señalan que el volumen comprador supera claramente al vendedor — presión alcista." },
+      { prompt: "El delta alterna rápidamente entre verde y rojo sin dominancia clara. ¿Qué describe mejor esto?", visual: "orderflow", options: ["Una tendencia fuerte y confirmada", "Indecisión entre compradores y vendedores", "Una señal de compra evidente", "Una señal de venta evidente"], correctIndex: 1, explanation: "Una alternancia sin dominancia clara refleja un mercado indeciso — a menudo un momento para evitar en lugar de operar." },
+    ],
+  },
+  correlation: {
+    fr: [
+      { prompt: "L'or (doré) et le dollar (bleu) évoluent en miroir presque parfait. Si le DXY commence une forte hausse, qu'attends-tu de l'or ?", visual: "correlation", options: ["Une hausse parallèle", "Une baisse, par corrélation inverse", "Aucun lien entre les deux", "L'or s'arrête de bouger"], correctIndex: 1, explanation: "L'or et le dollar évoluent historiquement de façon inverse — un dollar plus fort rend l'or relativement plus cher, ce qui pèse sur sa demande." },
+      { prompt: "Pourquoi un trader d'or surveille-t-il souvent le DXY avant d'entrer en position ?", visual: "correlation", options: ["Par habitude, sans réelle utilité", "Pour confirmer ou contredire son biais avant d'agir", "Parce que la loi l'exige", "Pour choisir la couleur du graphique"], correctIndex: 1, explanation: "Une corrélation qui confirme le biais renforce la conviction ; une contradiction doit inciter à la prudence." },
+    ],
+    en: [
+      { prompt: "Gold (gold line) and the dollar (blue line) move in near-perfect mirror. If the DXY starts a strong rally, what do you expect from gold?", visual: "correlation", options: ["A parallel rally", "A decline, due to inverse correlation", "No connection between the two", "Gold stops moving"], correctIndex: 1, explanation: "Gold and the dollar have historically moved inversely — a stronger dollar makes gold relatively more expensive, which weighs on demand." },
+      { prompt: "Why does a gold trader often watch the DXY before entering a position?", visual: "correlation", options: ["Out of habit, with no real use", "To confirm or contradict their bias before acting", "Because it's legally required", "To choose the chart color"], correctIndex: 1, explanation: "A correlation that confirms the bias reinforces conviction; a contradiction should prompt caution." },
+    ],
+    es: [
+      { prompt: "El oro (línea dorada) y el dólar (línea azul) se mueven en espejo casi perfecto. Si el DXY comienza una fuerte subida, ¿qué esperas del oro?", visual: "correlation", options: ["Una subida paralela", "Una caída, por correlación inversa", "Ninguna relación entre ambos", "El oro deja de moverse"], correctIndex: 1, explanation: "El oro y el dólar históricamente se mueven de forma inversa — un dólar más fuerte hace que el oro sea relativamente más caro, lo que pesa sobre su demanda." },
+      { prompt: "¿Por qué un trader de oro suele vigilar el DXY antes de entrar en una posición?", visual: "correlation", options: ["Por costumbre, sin utilidad real", "Para confirmar o contradecir su sesgo antes de actuar", "Porque la ley lo exige", "Para elegir el color del gráfico"], correctIndex: 1, explanation: "Una correlación que confirma el sesgo refuerza la convicción; una contradicción debe incitar a la prudencia." },
+    ],
+  },
+  sentiment: {
+    fr: [
+      { prompt: "Le positionnement affiché montre 85% d'acheteurs et 15% de vendeurs. Que faut-il garder à l'esprit ?", visual: "sentiment", options: ["C'est toujours un signal d'achat fiable à 100%", "Un positionnement extrême précède parfois un retournement", "Ça ne veut absolument rien dire", "Il faut immédiatement vendre"], correctIndex: 1, explanation: "Un positionnement très déséquilibré signale qu'il reste peu de nouveaux acheteurs potentiels — un retournement devient statistiquement plus probable." },
+      { prompt: "Le sentiment est équilibré, proche de 50/50. Qu'est-ce que ça suggère ?", visual: "sentiment", options: ["Une conviction directionnelle très forte", "Une absence de consensus clair", "Un signal d'achat immédiat", "Un signal de vente immédiat"], correctIndex: 1, explanation: "Un équilibre proche de 50/50 reflète l'absence de consensus fort — ni les acheteurs ni les vendeurs ne dominent." },
+    ],
+    en: [
+      { prompt: "The displayed positioning shows 85% buyers and 15% sellers. What should you keep in mind?", visual: "sentiment", options: ["It's always a 100% reliable buy signal", "An extreme positioning sometimes precedes a reversal", "It means absolutely nothing", "You should sell immediately"], correctIndex: 1, explanation: "A very unbalanced positioning signals that few new potential buyers remain — a reversal becomes statistically more likely." },
+      { prompt: "Sentiment is balanced, close to 50/50. What does that suggest?", visual: "sentiment", options: ["A very strong directional conviction", "An absence of clear consensus", "An immediate buy signal", "An immediate sell signal"], correctIndex: 1, explanation: "A balance close to 50/50 reflects the absence of a strong consensus — neither buyers nor sellers dominate." },
+    ],
+    es: [
+      { prompt: "El posicionamiento mostrado indica 85% compradores y 15% vendedores. ¿Qué debes tener en cuenta?", visual: "sentiment", options: ["Siempre es una señal de compra 100% fiable", "Un posicionamiento extremo a veces precede a un giro", "No significa absolutamente nada", "Hay que vender de inmediato"], correctIndex: 1, explanation: "Un posicionamiento muy desequilibrado señala que quedan pocos nuevos compradores potenciales — un giro se vuelve estadísticamente más probable." },
+      { prompt: "El sentimiento está equilibrado, cerca de 50/50. ¿Qué sugiere esto?", visual: "sentiment", options: ["Una convicción direccional muy fuerte", "Una ausencia de consenso claro", "Una señal de compra inmediata", "Una señal de venta inmediata"], correctIndex: 1, explanation: "Un equilibrio cercano a 50/50 refleja la ausencia de un consenso fuerte — ni compradores ni vendedores dominan." },
+    ],
+  },
+  multitf: {
+    fr: [
+      { prompt: "Sur le cadre supérieur, la tendance est clairement haussière. Sur le cadre inférieur, le prix vient de reculer brièvement. Quelle est la meilleure lecture ?", visual: "multitf", options: ["Vendre, car le petit cadre recule", "Chercher une entrée acheteuse sur ce recul", "Ignorer complètement le grand cadre", "Attendre que les deux cadres soient identiques"], correctIndex: 1, explanation: "La direction se lit sur le cadre supérieur, le timing sur le cadre inférieur — un recul dans une tendance haussière est souvent une opportunité." },
+      { prompt: "Pourquoi éviter de trader dans le sens opposé au cadre temporel supérieur ?", visual: "multitf", options: ["Ce n'est pas interdit, aucune raison particulière", "On rame à contre-courant d'une force de fond plus puissante", "Le petit cadre est toujours faux", "Il n'y a aucune différence entre les cadres"], correctIndex: 1, explanation: "La tendance de fond reflète une force de marché plus large — s'y opposer sur un petit cadre revient à parier contre la dynamique dominante." },
+    ],
+    en: [
+      { prompt: "On the higher timeframe, the trend is clearly bullish. On the lower timeframe, price just pulled back briefly. What's the best read?", visual: "multitf", options: ["Sell, because the smaller timeframe is pulling back", "Look for a buy entry on this pullback", "Completely ignore the higher timeframe", "Wait until both timeframes match exactly"], correctIndex: 1, explanation: "Direction is read on the higher timeframe, timing on the lower one — a pullback within an uptrend is often an opportunity." },
+      { prompt: "Why avoid trading against the direction of the higher timeframe?", visual: "multitf", options: ["It's not forbidden, no particular reason", "You're rowing against a more powerful underlying force", "The smaller timeframe is always wrong", "There's no difference between timeframes"], correctIndex: 1, explanation: "The underlying trend reflects a broader market force — going against it on a smaller timeframe means betting against the dominant momentum." },
+    ],
+    es: [
+      { prompt: "En el marco temporal superior, la tendencia es claramente alcista. En el marco inferior, el precio acaba de retroceder brevemente. ¿Cuál es la mejor lectura?", visual: "multitf", options: ["Vender, porque el marco pequeño retrocede", "Buscar una entrada de compra en este retroceso", "Ignorar completamente el marco superior", "Esperar a que ambos marcos coincidan exactamente"], correctIndex: 1, explanation: "La dirección se lee en el marco superior, el timing en el inferior — un retroceso dentro de una tendencia alcista suele ser una oportunidad." },
+      { prompt: "¿Por qué evitar operar en contra del marco temporal superior?", visual: "multitf", options: ["No está prohibido, sin razón particular", "Estás remando contra una fuerza de fondo más poderosa", "El marco pequeño siempre está equivocado", "No hay diferencia entre los marcos"], correctIndex: 1, explanation: "La tendencia de fondo refleja una fuerza de mercado más amplia — ir en su contra en un marco pequeño significa apostar contra el impulso dominante." },
+    ],
+  },
+};
