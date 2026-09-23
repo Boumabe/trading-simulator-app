@@ -11,6 +11,8 @@
       "icon": "./assets/images/icon.png"
     },
     "android": {
+      "package": "com.boumabe.simtra",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0A0B16",
         "foregroundImage": "./assets/images/adaptive-icon.png",
