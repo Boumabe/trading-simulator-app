@@ -21,6 +21,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="map" options={{ title: t('tab_map'), tabBarIcon: icon('🗺️') }} />
+      <Tabs.Screen name="arena" options={{ title: 'Arena', tabBarIcon: icon('⚔️') }} />
       <Tabs.Screen name="book" options={{ title: t('tab_book'), tabBarIcon: icon('📖') }} />
       <Tabs.Screen name="profile" options={{ title: t('tab_profile'), tabBarIcon: icon('🏅') }} />
       <Tabs.Screen name="settings" options={{ title: t('tab_settings'), tabBarIcon: icon('⚙️') }} />
