@@ -80,6 +80,9 @@ export const ARENA_TEXT: Record<Lang, Record<string, string>> = {
     arena_gauge_risk: "Risque",
     arena_gauge_composure: "Sang-froid",
     arena_week_letters: "L,M,M,J,V,S,D",
+    arena_share_btn: "📸 Partager",
+    arena_share_tag: "Prouve ta discipline. 100 % gratuit.",
+    arena_share_text: "Mon résultat sur Simtra Arena",
   },
   en: {
     arena_home_title: "Prove your discipline.",
@@ -159,6 +162,9 @@ export const ARENA_TEXT: Record<Lang, Record<string, string>> = {
     arena_gauge_risk: "Risk",
     arena_gauge_composure: "Composure",
     arena_week_letters: "M,T,W,T,F,S,S",
+    arena_share_btn: "📸 Share",
+    arena_share_tag: "Prove your discipline. 100% free.",
+    arena_share_text: "My Simtra Arena result",
   },
   es: {
     arena_home_title: "Demuestra tu disciplina.",
@@ -238,5 +244,8 @@ export const ARENA_TEXT: Record<Lang, Record<string, string>> = {
     arena_gauge_risk: "Riesgo",
     arena_gauge_composure: "Sangre fría",
     arena_week_letters: "L,M,X,J,V,S,D",
+    arena_share_btn: "📸 Compartir",
+    arena_share_tag: "Demuestra tu disciplina. 100 % gratis.",
+    arena_share_text: "Mi resultado en Simtra Arena",
   },
 };
