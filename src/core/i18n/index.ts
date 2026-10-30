@@ -7,11 +7,12 @@ import { BASE } from './base';
 import { EXTRA } from './extra';
 import { NAMES } from './levelNames';
 import { DIAGRAM_TEXT } from './diagrams';
+import { ARENA_TEXT } from './arena';
 
 const DICT: Record<Lang, Record<string, string>> = {
-  fr: { ...BASE.fr, ...DIAGRAM_TEXT.fr, ...EXTRA.fr },
-  en: { ...BASE.en, ...DIAGRAM_TEXT.en, ...EXTRA.en },
-  es: { ...BASE.es, ...DIAGRAM_TEXT.es, ...EXTRA.es },
+  fr: { ...BASE.fr, ...DIAGRAM_TEXT.fr, ...EXTRA.fr, ...ARENA_TEXT.fr },
+  en: { ...BASE.en, ...DIAGRAM_TEXT.en, ...EXTRA.en, ...ARENA_TEXT.en },
+  es: { ...BASE.es, ...DIAGRAM_TEXT.es, ...EXTRA.es, ...ARENA_TEXT.es },
 };
 
 export const dictionary = DICT;
