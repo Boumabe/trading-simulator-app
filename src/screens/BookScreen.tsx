@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GLOSSARY, STRATEGIES } from '../core/data/book';
@@ -12,6 +12,8 @@ import { isUnlocked } from '../core/store/logic';
 import type { BookItem, Lang } from '../core/types';
 import { Btn } from '../ui/Button';
 import Diagram from '../ui/Diagrams';
+import { ShareButton } from '../ui/ShareButton';
+import { ShareFrame } from '../ui/ShareFrame';
 import { Screen, TopBar } from '../ui/Screen';
 import { COLORS, RADIUS } from '../ui/theme';
 
@@ -32,6 +34,7 @@ export default function BookScreen() {
   const glossary = useBookContent('glossary', GLOSSARY);
   const [tab, setTab] = useState<'strategies' | 'glossary'>('strategies');
   const [item, setItem] = useState<BookItem | null>(null);
+  const shareRef = useRef<View>(null);
 
   useEffect(() => {
     if (!focus) return;
@@ -56,6 +59,7 @@ export default function BookScreen() {
       <Screen bottom={false}>
         <TopBar title={t('book_detail')} onBack={() => setItem(null)} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <ShareFrame ref={shareRef} style={{ paddingBottom: 6 }}>
           <Text style={styles.eyebrow}>{item.tier ? t(`tier_${item.tier}`) : t('book_notion')}</Text>
           <Text style={styles.itemTitle}>{String(loc(item.title, lang) ?? '')}</Text>
           <Text style={styles.itemDef}>{String(loc(item.def, lang) ?? '')}</Text>
@@ -66,6 +70,8 @@ export default function BookScreen() {
               {points.map((p, i) => <Text key={i} style={styles.point}>• {String(p)}</Text>)}
             </>
           )}
+          </ShareFrame>
+          <ShareButton targetRef={shareRef} title={String(loc(item.title, lang) ?? '')} style={{ marginTop: 10 }} />
           {level && canPlay && <Btn label={t('book_play')} onPress={() => router.push(routeForLevel(level) as never)} style={{ marginTop: 18 }} />}
         </ScrollView>
       </Screen>

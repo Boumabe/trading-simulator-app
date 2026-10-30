@@ -22,6 +22,7 @@ import { Burst } from '../ui/Burst';
 import { Chart, IndicatorPanel, VolumePanel, makeGeo } from '../ui/Chart';
 import { HudBar } from '../ui/HudBar';
 import { ResultOverlay } from '../ui/ResultOverlay';
+import { ShareFrame } from '../ui/ShareFrame';
 import { Screen, TopBar } from '../ui/Screen';
 import { TourOverlay } from '../ui/TourOverlay';
 import { TradeFeedback, type FeedbackData } from '../ui/TradeFeedback';
@@ -74,6 +75,7 @@ function PlayInner({ level }: { level: LevelDef }) {
   const [coins, setCoins] = useState(0);
   const [confetti, setConfetti] = useState(0);
   const fbId = useRef(0);
+  const chartShareRef = useRef<View>(null);
   const processed = useRef(0);
   const shake = useShake();
 
@@ -274,6 +276,7 @@ function PlayInner({ level }: { level: LevelDef }) {
       </View>
 
       <Animated.View style={{ alignSelf: 'center', width: chartW, transform: [{ translateX: shake.x }] }}>
+        <ShareFrame ref={chartShareRef}>
         <View style={styles.frame}>
           <Chart
             rt={rt} state={s} width={chartW} height={CHART_H} preview={inSniperPhase} hideAnswer={sniperActive} opts={opts}
@@ -286,6 +289,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         </View>
         {showPanels && !inSniperPhase && rt.cfg.mode === 'indicator' && <IndicatorPanel rt={rt} closed={s.closed} width={chartW} />}
         {showPanels && !inSniperPhase && (rt.cfg.showVolume || rt.cfg.mode === 'vwap') && <VolumePanel rt={rt} closed={s.closed} width={chartW} />}
+        </ShareFrame>
       </Animated.View>
 
       <View style={{ flex: 1 }} />
@@ -367,6 +371,7 @@ function PlayInner({ level }: { level: LevelDef }) {
             { label: t('play_trades_count'), value: String(st.count) },
           ]}
           note={st.count === 0 ? t('result_no_trade') : undefined}
+          shareRef={chartShareRef}
           onReplay={replay}
           onNext={goNext}
           onMap={() => router.replace('/map')}
