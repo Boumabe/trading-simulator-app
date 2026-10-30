@@ -9,7 +9,7 @@ export default function ArenaScreen() {
   const html = useMemo(() => arenaHtml(lang), [lang]);
   return (
     <View style={{ flex: 1, backgroundColor: '#080c12' }}>
-      {React.createElement('iframe', { srcDoc: html, title: 'Arena', style: { border: 0, width: '100%', height: '100%' } })}
+      {React.createElement('iframe', { srcDoc: html, title: 'Arena', allow: 'web-share', style: { border: 0, width: '100%', height: '100%' } })}
     </View>
   );
 }
