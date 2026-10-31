@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, type RefObject } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useI18n } from '../core/i18n';
 import { haptic, reward } from '../core/services/feedback';
@@ -20,8 +20,6 @@ export interface ResultProps {
   improved: boolean;
   stats: ResultStat[];
   note?: string;
-  /** Zone à partager en image (ex. le graphique). Sans elle, on partage la carte de résultat. */
-  shareRef?: RefObject<unknown>;
   onReplay: () => void;
   onNext?: () => void;
   onMap: () => void;
@@ -49,7 +47,7 @@ export function ResultOverlay(p: ResultProps) {
       <Burst trigger={burst} kind={p.stars === 3 ? 'stars' : 'confetti'} count={p.stars === 3 ? 22 : 34} />
       <Animated.View style={[styles.card, { transform: [{ scale }] }, p.passed && { borderColor: COLORS.gold }]}>
         <ScrollView contentContainerStyle={{ alignItems: 'center' }} showsVerticalScrollIndicator={false}>
-          <ShareFrame ref={cardRef} style={{ alignSelf: 'stretch', alignItems: 'center', paddingBottom: 6 }}>
+          <ShareFrame ref={cardRef} style={{ alignSelf: 'stretch' }}>
           <Text style={[styles.eyebrow, { color: p.passed ? COLORS.gold : COLORS.bear }]}>{t(p.passed ? 'result_passed' : 'result_failed')}</Text>
           <Text style={styles.title}>{p.title}</Text>
           <StarsRow value={p.stars} animate={p.passed} onStar={(i) => { reward.win(); haptic(i === 2 ? 'heavy' : 'medium'); }} />
@@ -62,9 +60,9 @@ export function ResultOverlay(p: ResultProps) {
             ))}
           </View>
           {p.xp > 0 ? <Text style={styles.xp}>+{Math.round(xp)} XP {p.improved ? '🚀' : ''}</Text> : null}
-          </ShareFrame>
           <Text style={styles.note}>{p.note ?? t(p.passed ? 'play_discipline_note' : 'result_fail_tip')}</Text>
-          <ShareButton targetRef={p.shareRef ?? cardRef} title={p.title} label={p.shareRef ? t('share_chart') : undefined} style={styles.btn} />
+          </ShareFrame>
+          <ShareButton targetRef={cardRef} title={p.title} style={styles.btn} />
           {p.passed && p.onNext ? <Btn label={t('result_next')} onPress={p.onNext} style={styles.btn} /> : null}
           <Btn label={t('play_replay')} onPress={p.onReplay} variant={p.passed && p.onNext ? 'ghost' : 'gold'} style={styles.btn} />
           <Btn label={t('play_back_to_map')} onPress={p.onMap} variant="ghost" style={styles.btn} />

@@ -1,18 +1,22 @@
 import React, { forwardRef } from 'react';
 import { StyleSheet, Text, View, type ViewProps } from 'react-native';
+import { useI18n } from '../core/i18n';
 import { COLORS } from './theme';
 
-/** Zone qui peut être partagée en image : fond plein + petite signature Simtra. */
+/** Zone partageable en image : marque SIMTRA bien visible en haut, contenu, puis slogan en bas. */
 export const ShareFrame = forwardRef<View, ViewProps>(function ShareFrame({ style, children, ...rest }, ref) {
+  const { t } = useI18n();
   return (
     <View ref={ref} collapsable={false} style={[styles.frame, style]} {...rest}>
+      <Text style={styles.brand}>SIMTRA</Text>
       {children}
-      <Text style={styles.mark}>SIMTRA</Text>
+      <Text style={styles.tag}>{t('share_tag')}</Text>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  frame: { backgroundColor: COLORS.bg },
-  mark: { alignSelf: 'flex-end', color: COLORS.dim, fontSize: 9, letterSpacing: 2, fontWeight: '800', opacity: 0.7, marginTop: 4 },
+  frame: { backgroundColor: COLORS.panel, alignItems: 'center', padding: 14, borderRadius: 16 },
+  brand: { color: COLORS.gold, fontSize: 22, fontWeight: '900', letterSpacing: 6, marginBottom: 12 },
+  tag: { color: COLORS.dim, fontSize: 11, textAlign: 'center', marginTop: 10, letterSpacing: 0.5 },
 });
