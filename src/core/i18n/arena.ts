@@ -83,6 +83,8 @@ export const ARENA_TEXT: Record<Lang, Record<string, string>> = {
     arena_share_btn: "📸 Partager",
     arena_share_tag: "Prouve ta discipline. 100 % gratuit.",
     arena_share_text: "Mon résultat sur Simtra Arena",
+    share_btn: "📸 Partager",
+    share_tag: "Apprends le trading avec discipline · 100 % gratuit",
   },
   en: {
     arena_home_title: "Prove your discipline.",
@@ -165,6 +167,8 @@ export const ARENA_TEXT: Record<Lang, Record<string, string>> = {
     arena_share_btn: "📸 Share",
     arena_share_tag: "Prove your discipline. 100% free.",
     arena_share_text: "My Simtra Arena result",
+    share_btn: "📸 Share",
+    share_tag: "Learn trading with discipline · 100% free",
   },
   es: {
     arena_home_title: "Demuestra tu disciplina.",
@@ -247,5 +251,7 @@ export const ARENA_TEXT: Record<Lang, Record<string, string>> = {
     arena_share_btn: "📸 Compartir",
     arena_share_tag: "Demuestra tu disciplina. 100 % gratis.",
     arena_share_text: "Mi resultado en Simtra Arena",
+    share_btn: "📸 Compartir",
+    share_tag: "Aprende trading con disciplina · 100 % gratis",
   },
 };
