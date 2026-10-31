@@ -59,7 +59,7 @@ export default function BookScreen() {
       <Screen bottom={false}>
         <TopBar title={t('book_detail')} onBack={() => setItem(null)} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <ShareFrame ref={shareRef} style={{ paddingBottom: 6 }}>
+          <ShareFrame ref={shareRef} style={{ alignItems: 'stretch' }}>
           <Text style={styles.eyebrow}>{item.tier ? t(`tier_${item.tier}`) : t('book_notion')}</Text>
           <Text style={styles.itemTitle}>{String(loc(item.title, lang) ?? '')}</Text>
           <Text style={styles.itemDef}>{String(loc(item.def, lang) ?? '')}</Text>
