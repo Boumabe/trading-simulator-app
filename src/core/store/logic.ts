@@ -308,6 +308,17 @@ export function weakestLevels(s: Pick<Persisted, 'levelStats'>, n = 3): { levelI
 
 export const finishLesson = (s: GameState): GameState => ({ ...s, lessonDone: true });
 
+/**
+ * Aide « cible verrouillée » (badge + signal sonore) qui s'efface avec le niveau.
+ * Débutant : toujours. Intermédiaire : jusqu'à sa première réussite du niveau. Avancé : jamais.
+ * (Le guidage aide les novices et peut gêner les plus expérimentés : effet d'inversion de l'expertise.)
+ */
+export function showTargetCue(choice: StartChoice | null, passesBefore: number): boolean {
+  if (choice === 'avance') return false;
+  if (choice === 'intermediaire') return passesBefore === 0;
+  return true;
+}
+
 /* ---------- Test de niveau ---------- */
 
 export const canRedoPlacement = (s: Persisted): boolean => (s.placement?.attempts ?? 0) < PLACEMENT_MAX_ATTEMPTS;

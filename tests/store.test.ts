@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted, topMistake, finishLesson, weakestLevels } from '../src/core/store/logic';
+import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted, topMistake, finishLesson, showTargetCue, weakestLevels } from '../src/core/store/logic';
 import { rankOf } from '../src/core/store/ranks';
 import type { TradeResult } from '../src/core/engine/rules';
 
@@ -231,6 +231,15 @@ test('provenance : la question n\'est posée qu\'une fois (valeur mémorisée et
   assert.equal(sanitize({}).sourceAsked, false);
   assert.equal(sanitize({ sourceAsked: true }).sourceAsked, true);
   assert.equal(initialState().sourceAsked, false);
+});
+
+test('aide « cible verrouillée » : permanente (débutant), jusqu\'à la 1re réussite (intermédiaire), jamais (avancé)', () => {
+  assert.equal(showTargetCue('debutant', 0), true);
+  assert.equal(showTargetCue('debutant', 5), true);
+  assert.equal(showTargetCue(null, 0), true);
+  assert.equal(showTargetCue('intermediaire', 0), true);
+  assert.equal(showTargetCue('intermediaire', 1), false);
+  assert.equal(showTargetCue('avance', 0), false);
 });
 
 test('provenance mémorisée : valeur courte acceptée, valeurs invalides ignorées', () => {
