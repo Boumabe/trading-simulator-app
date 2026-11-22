@@ -232,3 +232,11 @@ test('provenance : la question n\'est posée qu\'une fois (valeur mémorisée et
   assert.equal(sanitize({ sourceAsked: true }).sourceAsked, true);
   assert.equal(initialState().sourceAsked, false);
 });
+
+test('provenance mémorisée : valeur courte acceptée, valeurs invalides ignorées', () => {
+  assert.equal(sanitize({ source: 'tiktok' }).source, 'tiktok');
+  assert.equal(sanitize({ source: 'unknown' }).source, 'unknown');
+  assert.equal(sanitize({ source: 42 }).source, null);
+  assert.equal(sanitize({ source: 'x'.repeat(50) }).source, null);
+  assert.equal(initialState().source, null);
+});
