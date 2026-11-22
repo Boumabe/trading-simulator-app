@@ -4,14 +4,22 @@ import * as SplashScreen from 'expo-splash-screen';
 import type { TradeResult } from '../engine/rules';
 import type { StartChoice } from '../data/levels';
 import { setFeedbackPrefs } from '../services/feedback';
+import { persistAndFlush, restorePending, setAnalyticsEnabled, track, type Track } from '../services/analytics';
 import {
-  applyTrade, claimDaily, completeLevel, completeQuiz, dismissBanner, initialState, refill, resetAll, resetCapital,
-  toPersisted, toggleChecklist, touchClock, type DailyReward, type GameState, type LevelResult, type Persisted, type TradeReward,
+  applyPlacement, applyTrade, claimDaily, completeLevel, completeQuiz, dismissBanner, initialState, refill, resetAll, resetCapital,
+  retentionTick, toPersisted, toggleChecklist, touchClock, type DailyReward, type GameState, type LevelResult, type Persisted, type TradeReward,
 } from './logic';
 import { loadPersisted, savePersisted, wipeStorage } from './storage';
 
+/** Profil utilisé pour répartir les statistiques ('new' = pas encore de profil). */
+export const trackOf = (choice: StartChoice | null): Track => choice ?? 'new';
+
 export interface GameActions {
   chooseStart(c: StartChoice): void;
+  /** « Je débute totalement » : profil débutant sans test. */
+  chooseBeginner(): void;
+  /** Résultat du test de niveau. */
+  choosePlacement(a: { choice: StartChoice; correct: number; total: number }): void;
   recordTrade(trade: TradeResult, combo: number, levelId: number): TradeReward;
   finishLevel(a: { levelId: number; discipline: number; trades: number; sniperAccuracy?: number }): LevelResult;
   finishQuiz(a: { levelId: number; correct: number; total: number }): LevelResult;
@@ -50,16 +58,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     loadPersisted().then((p) => {
       if (!alive) return;
-      commit(touchClock({ ...ref.current, ...p, ready: true }, Date.now()));
+      const now = Date.now();
+      commit(touchClock({ ...ref.current, ...p, ready: true }, now));
       SplashScreen.hideAsync().catch(() => {});
+      // Mesure anonyme : ouverture, nouveau joueur, rétention J1/J7/J30 (compteurs, aucun identifiant).
+      setAnalyticsEnabled(ref.current.settings.analytics);
+      void restorePending();
+      const rt = retentionTick(ref.current, now);
+      commit({ ...ref.current, ...rt.patch });
+      track({ e: 'open', track: trackOf(ref.current.choice), newPlayer: rt.newPlayer, retDay: rt.retDay });
     });
     const sub = AppState.addEventListener('change', (st) => {
-      if (st !== 'active') flush();
+      if (st !== 'active') { flush(); void persistAndFlush(); }
     });
     return () => { alive = false; sub.remove(); flush(); };
   }, [commit, flush]);
 
   useEffect(() => { setFeedbackPrefs(state.settings); }, [state.settings]);
+  useEffect(() => { if (state.ready) setAnalyticsEnabled(state.settings.analytics); }, [state.ready, state.settings.analytics]);
 
   const actions = useMemo<GameActions>(() => {
     const mutate = <R,>(fn: (s: GameState) => { state: GameState; result: R }): R => {
@@ -69,11 +85,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
     return {
       chooseStart: (choice) => commit({ ...ref.current, choice }),
-      recordTrade: (trade, combo, levelId) => mutate((s) => applyTrade(s, { trade, combo, levelId, now: Date.now() })),
-      finishLevel: (a) => mutate((s) => completeLevel(s, { ...a, now: Date.now() })),
-      finishQuiz: (a) => mutate((s) => completeQuiz(s, { ...a, now: Date.now() })),
+      chooseBeginner: () => {
+        commit({ ...ref.current, choice: 'debutant' });
+        track({ e: 'beginner_pick' });
+      },
+      choosePlacement: (a) => {
+        commit(applyPlacement(ref.current, { ...a, now: Date.now() }));
+        track({ e: 'diag_done', correct: a.correct, place: a.choice });
+      },
+      recordTrade: (trade, combo, levelId) => {
+        const before = ref.current.balance;
+        const r = mutate((s) => applyTrade(s, { trade, combo, levelId, now: Date.now() }));
+        const tk = trackOf(ref.current.choice);
+        track({ e: 'trade', track: tk, levelId, reason: trade.reason, compliant: trade.compliant });
+        if (before > 0 && ref.current.balance <= 0) track({ e: 'broke', track: tk });
+        return r;
+      },
+      finishLevel: (a) => {
+        const r = mutate((s) => completeLevel(s, { ...a, now: Date.now() }));
+        track({ e: 'level_end', track: trackOf(ref.current.choice), levelId: a.levelId, stars: r.stars, discipline: a.discipline, passed: r.passed });
+        return r;
+      },
+      finishQuiz: (a) => {
+        const r = mutate((s) => completeQuiz(s, { ...a, now: Date.now() }));
+        track({ e: 'quiz_end', track: trackOf(ref.current.choice), levelId: a.levelId, stars: r.stars });
+        return r;
+      },
       claimDaily: () => mutate((s) => claimDaily(s, Date.now())),
-      refill: () => mutate((s) => refill(s, Date.now())),
+      refill: () => {
+        const ok = mutate((s) => refill(s, Date.now()));
+        if (ok) track({ e: 'refill', track: trackOf(ref.current.choice) });
+        return ok;
+      },
       resetCapital: () => commit(resetCapital(ref.current)),
       resetAll: async () => {
         await wipeStorage();

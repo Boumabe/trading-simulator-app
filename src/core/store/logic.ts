@@ -2,7 +2,7 @@ import { ECONOMY } from '../constants';
 import { starsFor, xpForLevel, xpForTrade, type Stars } from '../engine/scoring';
 import type { TradeResult } from '../engine/rules';
 import type { LangSetting } from '../types';
-import type { StartChoice } from '../data/levels';
+import { levelById, OPEN_TIER, type StartChoice } from '../data/levels';
 import { ACHIEVEMENTS } from './achievements';
 import { rankOf } from './ranks';
 
@@ -13,16 +13,25 @@ export interface Persisted {
   balance: number;
   xp: number;
   choice: StartChoice | null;
+  /** Résultat du test de niveau (null = « je débute totalement » ou pas encore passé). */
+  placement: Placement | null;
   levels: Record<number, LevelProgress>;
   streak: { count: number; best: number };
   daily: { lastClaimDay: string | null; lastSeen: number };
   refillDay: string | null;
   achievements: Record<string, number>;
   stats: { trades: number; compliant: number; bestCombo: number; sessions: number; perfect: number; sniper: number; quizPerfect: number };
-  settings: { sound: boolean; haptics: boolean; lang: LangSetting };
+  settings: { sound: boolean; haptics: boolean; lang: LangSetting; analytics: boolean };
   seenTour: boolean;
   checklist: number[];
+  /** Premier jour d'utilisation (AAAA-MM-JJ) et jours de rétention déjà comptés : mesure sans identifiant. */
+  firstDay: string | null;
+  retSent: number[];
 }
+
+export interface Placement { correct: number; total: number; attempts: number; at: number }
+/** Nombre maximal de passages du test de niveau (bonne pratique : tentatives limitées). */
+export const PLACEMENT_MAX_ATTEMPTS = 2;
 
 export interface Banner {
   id: number;
@@ -46,15 +55,18 @@ export const defaultPersisted = (): Persisted => ({
   balance: ECONOMY.START_BALANCE,
   xp: 0,
   choice: null,
+  placement: null,
   levels: {},
   streak: { count: 0, best: 0 },
   daily: { lastClaimDay: null, lastSeen: 0 },
   refillDay: null,
   achievements: {},
   stats: { trades: 0, compliant: 0, bestCombo: 0, sessions: 0, perfect: 0, sniper: 0, quizPerfect: 0 },
-  settings: { sound: true, haptics: true, lang: 'auto' },
+  settings: { sound: true, haptics: true, lang: 'auto', analytics: true },
   seenTour: false,
   checklist: [],
+  firstDay: null,
+  retSent: [],
 });
 
 export const initialState = (): GameState => ({ ...defaultPersisted(), ready: false, queue: [], walletEvent: null, nextId: 1 });
@@ -221,7 +233,9 @@ export function touchClock(s: GameState, now: number): GameState {
 
 /* ---------- Recharge de secours, réinitialisations, réglages ---------- */
 
-export const refillAvailable = (s: GameState, now: number): boolean => s.balance <= ECONOMY.REFILL_THRESHOLD && s.refillDay !== dayKey(now);
+/** Profil débutant : recharge illimitée (une perte précoce ne doit pas bloquer l'apprentissage). Les autres : 1 par jour. */
+export const refillAvailable = (s: GameState, now: number): boolean =>
+  s.balance <= ECONOMY.REFILL_THRESHOLD && (s.choice === 'debutant' || s.refillDay !== dayKey(now));
 
 export function refill(s: GameState, now: number): Out<boolean> {
   if (!refillAvailable(s, now)) return { state: s, result: false };
@@ -243,7 +257,30 @@ export const dismissBanner = (s: GameState, id: number): GameState => ({ ...s, q
 /* ---------- Niveaux : déblocage ---------- */
 
 export function isUnlocked(s: Persisted, levelId: number, recommended: number): boolean {
+  const lvl = levelById(levelId);
+  if (lvl && s.choice && lvl.tier <= OPEN_TIER[s.choice]) return true;
   return levelId === 1 || levelId === recommended || (s.levels[levelId - 1]?.stars ?? 0) >= 1;
+}
+
+/* ---------- Test de niveau ---------- */
+
+export const canRedoPlacement = (s: Persisted): boolean => (s.placement?.attempts ?? 0) < PLACEMENT_MAX_ATTEMPTS;
+
+export function applyPlacement(s: GameState, a: { choice: StartChoice; correct: number; total: number; now: number }): GameState {
+  return { ...s, choice: a.choice, placement: { correct: a.correct, total: a.total, attempts: (s.placement?.attempts ?? 0) + 1, at: a.now } };
+}
+
+/* ---------- Mesure sans identifiant : cohorte et rétention J1 / J7 / J30 ---------- */
+
+export const RETENTION_DAYS = [1, 7, 30] as const;
+
+/** À appeler à chaque ouverture : donne le jour de rétention atteint (une seule fois) ou signale un nouveau joueur. */
+export function retentionTick(s: Persisted, now: number): { patch: Pick<Persisted, 'firstDay' | 'retSent'>; newPlayer: boolean; retDay: number | null } {
+  const today = dayKey(now);
+  if (!s.firstDay) return { patch: { firstDay: today, retSent: s.retSent }, newPlayer: true, retDay: null };
+  const idx = daysBetween(s.firstDay, today);
+  const hit = (RETENTION_DAYS as readonly number[]).includes(idx) && !s.retSent.includes(idx) ? idx : null;
+  return { patch: { firstDay: s.firstDay, retSent: hit === null ? s.retSent : [...s.retSent, hit] }, newPlayer: false, retDay: hit };
 }
 
 /* ---------- Persistance : fusion défensive + migration de l'ancienne version ---------- */
@@ -258,6 +295,10 @@ export function sanitize(raw: unknown): Persisted {
     balance: Math.max(0, num(r.balance, d.balance)),
     xp: Math.max(0, num(r.xp, 0)),
     choice: r.choice === 'debutant' || r.choice === 'intermediaire' || r.choice === 'avance' ? r.choice : null,
+    placement:
+      r.placement && typeof r.placement === 'object'
+        ? { correct: num(r.placement.correct, 0), total: num(r.placement.total, 0), attempts: Math.max(0, Math.floor(num(r.placement.attempts, 0))), at: num(r.placement.at, 0) }
+        : null,
     levels: r.levels && typeof r.levels === 'object' ? (r.levels as Record<number, LevelProgress>) : {},
     streak: { count: num(r.streak?.count, 0), best: num(r.streak?.best, 0) },
     daily: { lastClaimDay: typeof r.daily?.lastClaimDay === 'string' ? r.daily.lastClaimDay : null, lastSeen: num(r.daily?.lastSeen, 0) },
@@ -268,9 +309,12 @@ export function sanitize(raw: unknown): Persisted {
       sound: r.settings?.sound !== false,
       haptics: r.settings?.haptics !== false,
       lang: r.settings?.lang === 'fr' || r.settings?.lang === 'en' || r.settings?.lang === 'es' ? r.settings.lang : 'auto',
+      analytics: r.settings?.analytics !== false,
     },
     seenTour: !!r.seenTour,
     checklist: Array.isArray(r.checklist) ? r.checklist.filter((x): x is number => typeof x === 'number') : [],
+    firstDay: typeof r.firstDay === 'string' ? r.firstDay : null,
+    retSent: Array.isArray(r.retSent) ? r.retSent.filter((x): x is number => typeof x === 'number') : [],
   };
 }
 

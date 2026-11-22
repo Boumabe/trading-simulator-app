@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll } from '../src/core/store/logic';
+import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted } from '../src/core/store/logic';
 import { rankOf } from '../src/core/store/ranks';
 import type { TradeResult } from '../src/core/engine/rules';
 
@@ -129,9 +129,74 @@ test('sanitize : données corrompues → valeurs sûres', () => {
 });
 
 test('reset total conserve les réglages', () => {
-  const s = { ...ready(), balance: 500, settings: { sound: false, haptics: true, lang: 'es' as const } };
+  const s = { ...ready(), balance: 500, settings: { sound: false, haptics: true, lang: 'es' as const, analytics: false } };
   const r = resetAll(s);
   assert.equal(r.balance, 100);
   assert.equal(r.settings.lang, 'es');
+  assert.equal(r.settings.analytics, false);
   assert.equal(dayKey(T0), '2026-09-21');
+});
+
+
+/* ---------- Profils : déblocage, recharge, test de niveau, mesure ---------- */
+
+test('déblocage par profil : débutant = chaîne, intermédiaire = paliers 1-2 ouverts, avancé = tout ouvert', () => {
+  const deb = { ...ready(), choice: 'debutant' as const };
+  assert.equal(isUnlocked(deb, 2, 1), false);
+  assert.equal(isUnlocked(deb, 33, 1), false);
+  const mid = { ...ready(), choice: 'intermediaire' as const };
+  assert.equal(isUnlocked(mid, 5, 8), true); // palier 1
+  assert.equal(isUnlocked(mid, 13, 8), true); // palier 2
+  assert.equal(isUnlocked(mid, 14, 8), false); // palier 3 : encore verrouillé
+  const adv = { ...ready(), choice: 'avance' as const };
+  assert.equal(isUnlocked(adv, 20, 33), true);
+  assert.equal(isUnlocked(adv, 48, 33), true);
+});
+
+test('recharge : illimitée pour le débutant, 1 par jour pour les autres', () => {
+  const broke = { ...ready(), balance: 0 };
+  const deb = { ...broke, choice: 'debutant' as const, refillDay: dayKey(T0) };
+  assert.ok(refillAvailable(deb, T0)); // même après une recharge le même jour
+  const mid = { ...broke, choice: 'intermediaire' as const, refillDay: dayKey(T0) };
+  assert.equal(refillAvailable(mid, T0), false);
+  assert.ok(refillAvailable(mid, T0 + DAY));
+  assert.equal(refillAvailable({ ...deb, balance: 60 }, T0), false); // pas bloqué : pas de recharge
+});
+
+test('test de niveau : enregistre le profil et limite les tentatives', () => {
+  let s = ready();
+  assert.ok(canRedoPlacement(s));
+  s = applyPlacement(s, { choice: 'intermediaire', correct: 5, total: 7, now: T0 });
+  assert.equal(s.choice, 'intermediaire');
+  assert.deepEqual(s.placement, { correct: 5, total: 7, attempts: 1, at: T0 });
+  assert.ok(canRedoPlacement(s));
+  s = applyPlacement(s, { choice: 'avance', correct: 7, total: 7, now: T0 + 1 });
+  assert.equal(s.placement?.attempts, 2);
+  assert.equal(canRedoPlacement(s), false);
+});
+
+test('rétention : nouveau joueur, puis J1 / J7 / J30 une seule fois chacun', () => {
+  let p = toPersisted(ready());
+  const t0 = retentionTick(p, T0);
+  assert.equal(t0.newPlayer, true);
+  assert.equal(t0.retDay, null);
+  p = { ...p, ...t0.patch };
+  assert.equal(p.firstDay, '2026-09-21');
+  assert.equal(retentionTick(p, T0).retDay, null); // même jour : rien
+  const d1 = retentionTick(p, T0 + DAY);
+  assert.equal(d1.retDay, 1);
+  p = { ...p, ...d1.patch };
+  assert.equal(retentionTick(p, T0 + DAY).retDay, null); // déjà compté
+  assert.equal(retentionTick(p, T0 + 2 * DAY).retDay, null); // J2 n'est pas suivi
+  assert.equal(retentionTick(p, T0 + 7 * DAY).retDay, 7);
+  assert.equal(retentionTick(p, T0 + 30 * DAY).retDay, 30);
+});
+
+test('sanitize : nouveaux champs avec valeurs par défaut sûres', () => {
+  const p = sanitize({ placement: { correct: 4, total: 7, attempts: 1, at: 5 }, firstDay: 3, retSent: [1, 'x'] });
+  assert.deepEqual(p.placement, { correct: 4, total: 7, attempts: 1, at: 5 });
+  assert.equal(p.firstDay, null);
+  assert.deepEqual(p.retSent, [1]);
+  assert.equal(p.settings.analytics, true);
+  assert.equal(sanitize({ settings: { analytics: false } }).settings.analytics, false);
 });

@@ -3,19 +3,12 @@ import * as Localization from 'expo-localization';
 import type { Lang, LangSetting } from '../types';
 import { useGame } from '../store/game';
 import { fetchCollection } from '../firebase/content';
-import { BASE } from './base';
-import { EXTRA } from './extra';
 import { NAMES } from './levelNames';
-import { DIAGRAM_TEXT } from './diagrams';
-import { ARENA_TEXT } from './arena';
+import { dictionary } from './dictionary';
 
-const DICT: Record<Lang, Record<string, string>> = {
-  fr: { ...BASE.fr, ...DIAGRAM_TEXT.fr, ...EXTRA.fr, ...ARENA_TEXT.fr },
-  en: { ...BASE.en, ...DIAGRAM_TEXT.en, ...EXTRA.en, ...ARENA_TEXT.en },
-  es: { ...BASE.es, ...DIAGRAM_TEXT.es, ...EXTRA.es, ...ARENA_TEXT.es },
-};
+const DICT = dictionary;
 
-export const dictionary = DICT;
+export { dictionary };
 
 /** Langue système → langue de l'app. Le créole haïtien (ht) bascule sur le français, pas sur l'anglais. */
 export function deviceLang(): Lang {
