@@ -71,7 +71,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       void restorePending();
       const rt = retentionTick(ref.current, now);
       commit({ ...ref.current, ...rt.patch });
-      track({ e: 'open', track: trackOf(ref.current.choice), newPlayer: rt.newPlayer, retDay: rt.retDay });
+      // Joueur déjà installé avant la question de provenance : on le range à part (« unknown »), avec son profil.
+      if (rt.newPlayer && ref.current.choice !== null) {
+        commit({ ...ref.current, source: ref.current.source ?? 'unknown', sourceAsked: true });
+        track({ e: 'cohort_src', v: 'unknown' });
+        track({ e: 'cohort_trk', v: trackOf(ref.current.choice) });
+      }
+      track({ e: 'open', track: trackOf(ref.current.choice), source: ref.current.source ?? 'none', newPlayer: rt.newPlayer, retDay: rt.retDay });
     });
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') { flush(); void persistAndFlush(); }
@@ -91,12 +97,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return {
       chooseStart: (choice) => commit({ ...ref.current, choice }),
       chooseBeginner: () => {
+        if (ref.current.choice === null) track({ e: 'cohort_trk', v: 'debutant' });
         commit({ ...ref.current, choice: 'debutant' });
         track({ e: 'beginner_pick' });
       },
       answerSource: (v) => {
-        commit({ ...ref.current, sourceAsked: true });
+        commit({ ...ref.current, sourceAsked: true, source: v ?? 'skip' });
         track({ e: 'source', v: v ?? 'skip' });
+        track({ e: 'cohort_src', v: v ?? 'skip' });
       },
       finishLesson: (a) => {
         commit(finishLessonState(ref.current));
@@ -107,6 +115,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         track({ e: 'lesson_skip', track: trackOf(ref.current.choice) });
       },
       choosePlacement: (a) => {
+        if (ref.current.choice === null) track({ e: 'cohort_trk', v: a.choice });
         commit(applyPlacement(ref.current, { ...a, now: Date.now() }));
         track({ e: 'diag_done', correct: a.correct, place: a.choice });
       },

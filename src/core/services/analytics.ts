@@ -16,7 +16,11 @@ export type SourceValue = 'friend' | 'tiktok' | 'facebook' | 'instagram' | 'yout
 export const SOURCE_CHOICES = ['friend', 'tiktok', 'facebook', 'instagram', 'youtube', 'whatsapp', 'store', 'other'] as const;
 
 export type AppEvent =
-  | { e: 'open'; track: Track; newPlayer: boolean; retDay: number | null }
+  | { e: 'open'; track: Track; source: string; newPlayer: boolean; retDay: number | null }
+  /** Nouveau joueur rattaché à sa provenance (au moment de sa réponse) ou « unknown » (joueur déjà installé avant la question). */
+  | { e: 'cohort_src'; v: SourceValue | 'unknown' }
+  /** Nouveau joueur rattaché à son profil (au moment où il le choisit). */
+  | { e: 'cohort_trk'; v: Track }
   | { e: 'diag_start'; track: Track }
   | { e: 'diag_answer'; qid: string; result: 'right' | 'wrong' | 'skip' }
   | { e: 'diag_done'; correct: number; place: Track }
@@ -88,7 +92,18 @@ export function countsFor(ev: AppEvent): Counts {
     case 'open':
       bump(c, ['c', 'open', ev.track]);
       if (ev.newPlayer) bump(c, ['cohort', 'n']);
-      if (ev.retDay !== null) bump(c, ['ret', `d${ev.retDay}`]);
+      if (ev.retDay !== null) {
+        bump(c, ['ret', `d${ev.retDay}`]);
+        // Rétention ventilée : par provenance et par profil (dénominateurs : cohort.src et cohort.trk).
+        bump(c, ['ret', 'src', `d${ev.retDay}`, ev.source]);
+        bump(c, ['ret', 'trk', `d${ev.retDay}`, ev.track]);
+      }
+      break;
+    case 'cohort_src':
+      bump(c, ['cohort', 'src', ev.v]);
+      break;
+    case 'cohort_trk':
+      bump(c, ['cohort', 'trk', ev.v]);
       break;
     case 'diag_start':
       bump(c, ['c', 'diag_start', ev.track]);

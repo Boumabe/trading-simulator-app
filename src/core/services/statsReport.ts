@@ -39,6 +39,32 @@ export function buildReport(s: Counts): Section[] {
 
   const place = (t: string) => num(s, 'diag', 'place', t);
   const scores = [0, 1, 2, 3, 4, 5, 6, 7].map((n) => `${n}:${num(s, 'diag', 'score', n)}`).join('  ');
+  const RET_DAYS = ['d1', 'd7', 'd30'] as const;
+  const retLine = (label: string, size: number, get: (d: (typeof RET_DAYS)[number]) => number) =>
+    `${label} : ${size} joueur${size > 1 ? 's' : ''} · ${RET_DAYS.map((d) => `${d.toUpperCase()} ${get(d)} (${pct(get(d), size)})`).join(' · ')}${size < 30 ? ' · peu de joueurs : tendance seulement' : ''}`;
+
+  const bySrc = Object.keys(SOURCE_LABEL).concat(['skip', 'unknown', 'none']);
+  const srcLabel = (k: string) => (k in SOURCE_LABEL ? SOURCE_LABEL[k as keyof typeof SOURCE_LABEL] : k === 'skip' ? 'question passée' : k === 'unknown' ? 'déjà installés avant la question' : 'pas encore répondu');
+  const knownSrc = bySrc.filter((k) => k !== 'none').reduce((n, k) => n + num(s, 'cohort', 'src', k), 0);
+  const srcRows = bySrc
+    .map((k) => ({ k, size: k === 'none' ? Math.max(0, cohort - knownSrc) : num(s, 'cohort', 'src', k) }))
+    .filter((r) => r.size > 0 || RET_DAYS.some((d) => num(s, 'ret', 'src', d, r.k) > 0))
+    .sort((a, b) => b.size - a.size)
+    .map((r) => retLine(srcLabel(r.k), r.size, (d) => num(s, 'ret', 'src', d, r.k)));
+  out.push({
+    title: 'Rétention par provenance',
+    lines: [
+      'Chaque ligne : joueurs arrivés par cette source, et combien sont revenus exactement 1, 7 et 30 jours après leur premier jour.',
+      ...(srcRows.length ? srcRows : ['Pas encore de données.']),
+    ],
+  });
+
+  const trkRows = (['debutant', 'intermediaire', 'avance'] as const)
+    .map((t) => ({ t, size: num(s, 'cohort', 'trk', t) }))
+    .filter((r) => r.size > 0 || RET_DAYS.some((d) => num(s, 'ret', 'trk', d, r.t) > 0))
+    .map((r) => retLine(TRACK_LABEL[r.t], r.size, (d) => num(s, 'ret', 'trk', d, r.t)));
+  out.push({ title: 'Rétention par profil', lines: trkRows.length ? trkRows : ['Pas encore de données.'] });
+
   out.push({
     title: 'Accueil et test de niveau',
     lines: [
