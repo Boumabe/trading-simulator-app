@@ -26,7 +26,11 @@ export type AppEvent =
   | { e: 'broke'; track: Track }
   | { e: 'refill'; track: Track }
   | { e: 'speed'; track: Track; to: number }
-  | { e: 'rate'; track: Track; levelId: number; v: Difficulty };
+  | { e: 'rate'; track: Track; levelId: number; v: Difficulty }
+  | { e: 'lesson_start'; track: Track }
+  | { e: 'lesson_done'; track: Track; correct: number }
+  | { e: 'lesson_skip'; track: Track }
+  | { e: 'source'; v: 'friend' | 'social' | 'store' | 'other' };
 
 /* ---------- Compteurs imbriqués (fonctions pures, testées) ---------- */
 
@@ -136,6 +140,21 @@ export function countsFor(ev: AppEvent): Counts {
       break;
     case 'speed':
       bump(c, ['spd', String(ev.to).replace('.', '_'), ev.track]);
+      break;
+    // Attention : les règles Firestore publiées n'acceptent que ces clés de premier niveau :
+    // c, lv, lvt, why, diff, diffT, dq, diag, cohort, ret, spd. Tout nouveau compteur va donc sous « c ».
+    case 'lesson_start':
+      bump(c, ['c', 'lesson_start', ev.track]);
+      break;
+    case 'lesson_done':
+      bump(c, ['c', 'lesson_done', ev.track]);
+      bump(c, ['c', 'lesson_score', ev.correct]);
+      break;
+    case 'lesson_skip':
+      bump(c, ['c', 'lesson_skip', ev.track]);
+      break;
+    case 'source':
+      bump(c, ['c', 'source', ev.v]);
       break;
     case 'rate':
       bump(c, ['diff', ev.levelId, ev.v]);

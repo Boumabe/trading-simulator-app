@@ -97,6 +97,12 @@ export default function MapScreen() {
     <Screen bottom={false}>
       <HudBar onPress={() => router.push('/profile')} />
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 40 }}>
+        {game.choice === 'debutant' && !game.lessonDone && (
+          <Pressable accessibilityRole="button" onPress={() => { reward.tap(); router.push('/lesson' as never); }} style={styles.lessonBanner}>
+            <Text style={styles.ctaEyebrow}>🌱 {t('map_lesson_sub')}</Text>
+            <Text style={styles.ctaTitle}>{t('map_lesson_title')}</Text>
+          </Pressable>
+        )}
         {nextLevel && (
           <Pressable
             accessibilityRole="button"
@@ -158,6 +164,7 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   cta: { backgroundColor: COLORS.panelAlt, borderWidth: 1.5, borderColor: COLORS.gold, borderRadius: RADIUS.lg, padding: 16, marginBottom: 14 },
+  lessonBanner: { borderWidth: 1.5, borderColor: COLORS.gold, backgroundColor: COLORS.panelAlt, borderRadius: RADIUS.lg, padding: 16, marginBottom: 12 },
   ctaEyebrow: { color: COLORS.gold, fontSize: 10, letterSpacing: 2, fontWeight: '800' },
   ctaTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginTop: 4 },
   ctaGo: { color: COLORS.gold, fontSize: 13, fontWeight: '800', marginTop: 8 },

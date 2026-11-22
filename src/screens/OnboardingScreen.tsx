@@ -14,6 +14,8 @@ import { COLORS, RADIUS } from '../ui/theme';
 
 type Answer = 'right' | 'wrong' | 'skip';
 type Stage = 'intro' | 'test' | 'result';
+type SourceChoice = 'friend' | 'social' | 'store' | 'other';
+const SOURCES: SourceChoice[] = ['friend', 'social', 'store', 'other'];
 
 const ICON: Record<StartChoice, string> = { debutant: '🌱', intermediaire: '📈', avance: '🎯' };
 
@@ -29,6 +31,7 @@ export default function OnboardingScreen() {
   const [stage, setStage] = useState<Stage>('intro');
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>([]);
+  const [source, setSource] = useState<SourceChoice | null>(null);
   const seed = useRef(Date.now() % 1000003).current;
   const track0 = trackOf(game.choice);
   const canTest = canRedoPlacement(game);
@@ -54,10 +57,10 @@ export default function OnboardingScreen() {
     else setIndex(index + 1);
   };
 
-  const beginner = () => { chooseBeginner(); router.replace('/map'); };
+  const beginner = () => { chooseBeginner(); router.replace(game.lessonDone ? '/map' : '/lesson'); };
   const confirmPlacement = () => {
     choosePlacement({ choice: placed, correct: correctIds.length, total: PLACEMENT_TOTAL });
-    router.replace('/map');
+    router.replace(placed === 'debutant' && !game.lessonDone ? '/lesson' : '/map');
   };
 
   return (
@@ -85,6 +88,23 @@ export default function OnboardingScreen() {
                 </Pressable>
               )}
             </View>
+            {game.choice === null && (
+              <View style={{ marginTop: 18 }}>
+                <Text style={styles.srcTitle}>{t('ob_src_title')}</Text>
+                <View style={styles.srcRow}>
+                  {SOURCES.map((v) => (
+                    <Pressable
+                      key={v}
+                      accessibilityRole="button"
+                      onPress={() => { if (source === null) track({ e: 'source', v }); setSource((cur) => cur ?? v); }}
+                      style={[styles.srcPill, source === v && { borderColor: COLORS.gold }]}
+                    >
+                      <Text style={styles.srcText}>{t(`ob_src_${v}`)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
             <Text style={styles.note}>{t('ob_stats_note')}</Text>
             <Text style={styles.disclaimer}>{t('disclaimer_text')}</Text>
           </>
@@ -142,5 +162,9 @@ const styles = StyleSheet.create({
   question: { color: COLORS.text, fontSize: 18, fontWeight: '800', lineHeight: 25, marginBottom: 16 },
   option: { borderWidth: 1.5, borderColor: COLORS.line, backgroundColor: COLORS.panel, borderRadius: RADIUS.md, padding: 14, marginBottom: 10 },
   optionText: { color: COLORS.text, fontSize: 15, lineHeight: 21 },
+  srcTitle: { color: COLORS.dim, fontSize: 12, textAlign: 'center', marginBottom: 8 },
+  srcRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  srcPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.pill, borderWidth: 1.5, borderColor: COLORS.line, backgroundColor: COLORS.panel },
+  srcText: { color: COLORS.text, fontSize: 12, fontWeight: '700' },
   resultText: { color: COLORS.text, fontSize: 15, lineHeight: 22, textAlign: 'center' },
 });

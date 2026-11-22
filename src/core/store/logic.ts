@@ -21,6 +21,10 @@ export interface Persisted {
   refillDay: string | null;
   achievements: Record<string, number>;
   stats: { trades: number; compliant: number; bestCombo: number; sessions: number; perfect: number; sniper: number; quizPerfect: number };
+  /** Trades hors règle par raison (sert à « ton erreur n°1 »). */
+  mistakes: Record<string, number>;
+  /** Leçon 0 (lecture d'une bougie) terminée ou passée. */
+  lessonDone: boolean;
   settings: { sound: boolean; haptics: boolean; lang: LangSetting; analytics: boolean };
   seenTour: boolean;
   checklist: number[];
@@ -62,6 +66,8 @@ export const defaultPersisted = (): Persisted => ({
   refillDay: null,
   achievements: {},
   stats: { trades: 0, compliant: 0, bestCombo: 0, sessions: 0, perfect: 0, sniper: 0, quizPerfect: 0 },
+  mistakes: {},
+  lessonDone: false,
   settings: { sound: true, haptics: true, lang: 'auto', analytics: true },
   seenTour: false,
   checklist: [],
@@ -137,6 +143,7 @@ export function applyTrade(s: GameState, a: { trade: TradeResult; combo: number;
       compliant: s.stats.compliant + (a.trade.compliant ? 1 : 0),
       bestCombo: Math.max(s.stats.bestCombo, a.combo),
     },
+    mistakes: a.trade.compliant ? s.mistakes : { ...s.mistakes, [a.trade.reason]: (s.mistakes[a.trade.reason] ?? 0) + 1 },
   };
   const r = settleRewards(s, next, a.now);
   next = r.state;
@@ -262,6 +269,21 @@ export function isUnlocked(s: Persisted, levelId: number, recommended: number): 
   return levelId === 1 || levelId === recommended || (s.levels[levelId - 1]?.stars ?? 0) >= 1;
 }
 
+/* ---------- Erreur n°1 et leçon 0 ---------- */
+
+export const MISTAKE_MIN_SAMPLE = 3;
+
+/** Raison la plus fréquente parmi les trades hors règle (à partir de 3 erreurs, pour ne pas conclure sur du bruit). */
+export function topMistake(s: Pick<Persisted, 'mistakes'>): { reason: string; count: number; total: number } | null {
+  const entries = Object.entries(s.mistakes).filter(([, n]) => n > 0);
+  const total = entries.reduce((n, [, c]) => n + c, 0);
+  if (total < MISTAKE_MIN_SAMPLE) return null;
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return { reason: entries[0][0], count: entries[0][1], total };
+}
+
+export const finishLesson = (s: GameState): GameState => ({ ...s, lessonDone: true });
+
 /* ---------- Test de niveau ---------- */
 
 export const canRedoPlacement = (s: Persisted): boolean => (s.placement?.attempts ?? 0) < PLACEMENT_MAX_ATTEMPTS;
@@ -305,6 +327,11 @@ export function sanitize(raw: unknown): Persisted {
     refillDay: typeof r.refillDay === 'string' ? r.refillDay : null,
     achievements: r.achievements && typeof r.achievements === 'object' ? r.achievements : {},
     stats: { ...d.stats, ...(r.stats ?? {}) },
+    mistakes:
+      r.mistakes && typeof r.mistakes === 'object'
+        ? Object.fromEntries(Object.entries(r.mistakes as Record<string, unknown>).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0).map(([k, v]) => [k, Math.floor(v as number)]))
+        : {},
+    lessonDone: !!r.lessonDone,
     settings: {
       sound: r.settings?.sound !== false,
       haptics: r.settings?.haptics !== false,

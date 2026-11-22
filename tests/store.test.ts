@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted } from '../src/core/store/logic';
+import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted, topMistake, finishLesson } from '../src/core/store/logic';
 import { rankOf } from '../src/core/store/ranks';
 import type { TradeResult } from '../src/core/engine/rules';
 
@@ -199,4 +199,30 @@ test('sanitize : nouveaux champs avec valeurs par défaut sûres', () => {
   assert.deepEqual(p.retSent, [1]);
   assert.equal(p.settings.analytics, true);
   assert.equal(sanitize({ settings: { analytics: false } }).settings.analytics, false);
+});
+
+/* ---------- Erreur n°1 et leçon 0 ---------- */
+
+test('erreur n°1 : comptée seulement pour les trades hors règle, affichée à partir de 3 erreurs', () => {
+  let s = ready();
+  const trade = (reason: string, compliant: boolean) => ({ type: 'buy', entryPrice: 1, exitPrice: 1, entryClosed: 1, exitClosed: 2, pnl: 0, net: 0, compliant, reason }) as never;
+  s = applyTrade(s, { trade: trade('ok_zone', true), combo: 1, levelId: 1, now: T0 }).state;
+  assert.deepEqual(s.mistakes, {});
+  assert.equal(topMistake(s), null);
+  for (const r of ['too_early', 'too_early', 'wrong_side']) s = applyTrade(s, { trade: trade(r, false), combo: 0, levelId: 1, now: T0 }).state;
+  assert.deepEqual(s.mistakes, { too_early: 2, wrong_side: 1 });
+  assert.deepEqual(topMistake(s), { reason: 'too_early', count: 2, total: 3 });
+});
+
+test('erreur n°1 : égalité départagée de façon stable', () => {
+  assert.equal(topMistake({ mistakes: { out_zone: 2, off_line: 2, wrong_side: 1 } })?.reason, 'off_line');
+});
+
+test('leçon 0 et erreurs : valeurs par défaut sûres au chargement', () => {
+  const p = sanitize({ mistakes: { too_early: 2, bad: 'x', neg: -1 }, lessonDone: 1 });
+  assert.deepEqual(p.mistakes, { too_early: 2 });
+  assert.equal(p.lessonDone, true);
+  assert.equal(sanitize({}).lessonDone, false);
+  assert.deepEqual(sanitize({}).mistakes, {});
+  assert.equal(finishLesson(ready()).lessonDone, true);
 });
