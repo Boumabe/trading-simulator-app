@@ -77,3 +77,18 @@ test('rapport : lit les compteurs sans rien inventer', () => {
   assert.ok(!text.includes('ok_zone'));
   assert.ok(buildReport({}).every((s) => s.lines.length > 0));
 });
+
+test('leçon 0 et provenance : uniquement sous la clé « c » (règles Firestore publiées)', () => {
+  const allowed = new Set(['c', 'lv', 'lvt', 'why', 'diff', 'diffT', 'dq', 'diag', 'cohort', 'ret', 'spd']);
+  const evs = [
+    { e: 'lesson_start', track: 'debutant' }, { e: 'lesson_done', track: 'debutant', correct: 2 },
+    { e: 'lesson_skip', track: 'new' }, { e: 'source', v: 'social' },
+    { e: 'open', track: 'new', newPlayer: true, retDay: 1 }, { e: 'level_start', track: 'avance', levelId: 2 },
+    { e: 'trade', track: 'avance', levelId: 2, reason: 'ok_zone', compliant: true }, { e: 'speed', track: 'new', to: 0.5 },
+    { e: 'rate', track: 'new', levelId: 2, v: 'ok' }, { e: 'diag_answer', qid: 'rr', result: 'right' }, { e: 'diag_done', correct: 3, place: 'debutant' },
+    { e: 'level_end', track: 'new', levelId: 1, stars: 1, discipline: 50, passed: true }, { e: 'quiz_end', track: 'new', levelId: 25, stars: 1 },
+  ] as const;
+  for (const ev of evs) for (const k of Object.keys(countsFor(ev as never))) assert.ok(allowed.has(k), `clé non autorisée : ${k} (${ev.e})`);
+  assert.deepEqual(countsFor({ e: 'lesson_done', track: 'debutant', correct: 2 }), { c: { lesson_done: { debutant: 1 }, lesson_score: { '2': 1 } } });
+  assert.deepEqual(countsFor({ e: 'source', v: 'social' }), { c: { source: { social: 1 } } });
+});

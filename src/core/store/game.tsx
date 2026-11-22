@@ -6,7 +6,7 @@ import type { StartChoice } from '../data/levels';
 import { setFeedbackPrefs } from '../services/feedback';
 import { persistAndFlush, restorePending, setAnalyticsEnabled, track, type Track } from '../services/analytics';
 import {
-  applyPlacement, applyTrade, claimDaily, completeLevel, completeQuiz, dismissBanner, initialState, refill, resetAll, resetCapital,
+  applyPlacement, applyTrade, claimDaily, completeLevel, completeQuiz, dismissBanner, finishLesson as finishLessonState, initialState, refill, resetAll, resetCapital,
   retentionTick, toPersisted, toggleChecklist, touchClock, type DailyReward, type GameState, type LevelResult, type Persisted, type TradeReward,
 } from './logic';
 import { loadPersisted, savePersisted, wipeStorage } from './storage';
@@ -18,6 +18,9 @@ export interface GameActions {
   chooseStart(c: StartChoice): void;
   /** « Je débute totalement » : profil débutant sans test. */
   chooseBeginner(): void;
+  /** Leçon 0 terminée (nombre de bonnes réponses) ou passée. */
+  finishLesson(a: { correct: number }): void;
+  skipLesson(): void;
   /** Résultat du test de niveau. */
   choosePlacement(a: { choice: StartChoice; correct: number; total: number }): void;
   recordTrade(trade: TradeResult, combo: number, levelId: number): TradeReward;
@@ -88,6 +91,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       chooseBeginner: () => {
         commit({ ...ref.current, choice: 'debutant' });
         track({ e: 'beginner_pick' });
+      },
+      finishLesson: (a) => {
+        commit(finishLessonState(ref.current));
+        track({ e: 'lesson_done', track: trackOf(ref.current.choice), correct: a.correct });
+      },
+      skipLesson: () => {
+        commit(finishLessonState(ref.current));
+        track({ e: 'lesson_skip', track: trackOf(ref.current.choice) });
       },
       choosePlacement: (a) => {
         commit(applyPlacement(ref.current, { ...a, now: Date.now() }));

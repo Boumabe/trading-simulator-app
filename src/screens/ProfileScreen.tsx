@@ -5,7 +5,7 @@ import { LEVELS } from '../core/data/levels';
 import { useI18n } from '../core/i18n';
 import { useGame } from '../core/store/game';
 import { ACHIEVEMENTS } from '../core/store/achievements';
-import { liveStreak } from '../core/store/logic';
+import { liveStreak, topMistake } from '../core/store/logic';
 import { RANK_COUNT, rankOf } from '../core/store/ranks';
 import { Btn } from '../ui/Button';
 import { HudBar } from '../ui/HudBar';
@@ -30,6 +30,7 @@ export default function ProfileScreen() {
   const stars = Object.values(g.levels).reduce((s, l) => s + l.stars, 0);
   const discipline = g.stats.trades ? Math.round((g.stats.compliant / g.stats.trades) * 100) : 0;
   const unlocked = ACHIEVEMENTS.filter((a) => g.achievements[a.id]).length;
+  const top = topMistake(g);
 
   return (
     <Screen bottom={false}>
@@ -48,6 +49,19 @@ export default function ProfileScreen() {
           <Stat label={t('profile_trades')} value={String(g.stats.trades)} />
           <Stat label={t('profile_best_combo')} value={`🔥 ${g.stats.bestCombo}`} />
           <Stat label={t('profile_streak')} value={`${liveStreak(g, Date.now())} / ${g.streak.best}`} />
+        </View>
+
+        <View style={styles.mistakeCard}>
+          <Text style={styles.eyebrow}>{t('profile_top_mistake')}</Text>
+          {top ? (
+            <>
+              <Text style={styles.mistakeText}>{t(`why_${top.reason}`)}</Text>
+              <Text style={styles.mistakeSub}>{t('profile_top_mistake_count', { n: top.count, total: top.total })}</Text>
+            </>
+          ) : (
+            <Text style={styles.mistakeSub}>{t('profile_top_mistake_none')}</Text>
+          )}
+          <Text style={styles.honest}>{t('profile_honest')}</Text>
         </View>
 
         <Text style={styles.section}>{t('profile_achievements')} · {unlocked}/{ACHIEVEMENTS.length}</Text>
@@ -80,6 +94,10 @@ const styles = StyleSheet.create({
   stat: { flexBasis: '31%', flexGrow: 1, backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.md, padding: 12, alignItems: 'center' },
   statValue: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
   statLabel: { color: COLORS.dim, fontSize: 10, marginTop: 3, textAlign: 'center' },
+  mistakeCard: { backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.md, padding: 14, marginTop: 14 },
+  mistakeText: { color: COLORS.text, fontSize: 15, fontWeight: '700', lineHeight: 21, marginTop: 6 },
+  mistakeSub: { color: COLORS.dim, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  honest: { color: COLORS.dim, fontSize: 11, lineHeight: 16, marginTop: 10, fontStyle: 'italic' },
   section: { color: COLORS.dim, fontSize: 11, letterSpacing: 1.2, fontWeight: '800', marginTop: 22, marginBottom: 10 },
   achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   ach: { flexBasis: '47%', flexGrow: 1, backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.md, padding: 12 },

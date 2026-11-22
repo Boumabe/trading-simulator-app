@@ -48,6 +48,15 @@ export function buildReport(s: Counts): Section[] {
     ],
   });
 
+  out.push({
+    title: 'Provenance et Leçon 0',
+    lines: [
+      `Provenance : amis ${num(s, 'c', 'source', 'friend')} · réseaux sociaux ${num(s, 'c', 'source', 'social')} · Play Store ${num(s, 'c', 'source', 'store')} · autre ${num(s, 'c', 'source', 'other')}`,
+      `Leçon 0 : commencée ${sumTracks(s, 'lesson_start')} · terminée ${sumTracks(s, 'lesson_done')} · passée ${sumTracks(s, 'lesson_skip')}`,
+      `Scores de la leçon (bonnes réponses : joueurs) : ${[0, 1, 2, 3].map((n) => `${n}:${num(s, 'c', 'lesson_score', n)}`).join('  ')}`,
+    ],
+  });
+
   const funnel: string[] = [];
   for (const t of TRACKS) {
     const starts = num(s, 'c', 'level_start', t);
