@@ -24,7 +24,7 @@ import { Chart, IndicatorPanel, VolumePanel, makeGeo } from '../ui/Chart';
 import { HudBar } from '../ui/HudBar';
 import { ResultOverlay } from '../ui/ResultOverlay';
 import { Screen, TopBar } from '../ui/Screen';
-import { TourOverlay } from '../ui/TourOverlay';
+import { GuidedTour, type TourStep } from '../ui/GuidedTour';
 import { TradeFeedback, type FeedbackData } from '../ui/TradeFeedback';
 import { useShake } from '../ui/anim';
 import { COLORS, FILL, RADIUS, money } from '../ui/theme';
@@ -82,6 +82,16 @@ function PlayInner({ level }: { level: LevelDef }) {
   const [coins, setCoins] = useState(0);
   const [confetti, setConfetti] = useState(0);
   const fbId = useRef(0);
+  /* Éléments éclairés par le tutoriel guidé (positions mesurées par rapport à rootRef). */
+  const rootRef = useRef<View>(null);
+  const priceRef = useRef<View>(null);
+  const chartRef = useRef<View>(null);
+  const ruleRef = useRef<View>(null);
+  const buyRef = useRef<View>(null);
+  const sellRef = useRef<View>(null);
+  const closeRef = useRef<View>(null);
+  const hudRef = useRef<View>(null);
+  const ctrlRef = useRef<View>(null);
   const processed = useRef(0);
   const shake = useShake();
 
@@ -104,6 +114,17 @@ function PlayInner({ level }: { level: LevelDef }) {
   }, [phase, s.status, tk, level.id]);
 
   const finishTour = () => { actions.markTourSeen(); beginAfterTour(); };
+  const endTour = (how: 'done' | 'skip') => { track({ e: 'tour', track: tk, step: how }); finishTour(); };
+  const tourSteps: TourStep[] = [
+    { id: 'price', title: t('tut_1_t'), text: t('tut_1_d'), target: priceRef },
+    { id: 'chart', title: t('tut_2_t'), text: t('tut_2_d'), target: chartRef },
+    { id: 'rule', title: t('tut_3_t'), text: t('tut_3_d'), target: ruleRef },
+    { id: 'buy', title: t('tut_4_t'), text: t('tut_4_d'), target: buyRef },
+    { id: 'sell', title: t('tut_5_t'), text: t('tut_5_d'), target: sellRef },
+    { id: 'close', title: t('tut_6_t'), text: t('tut_6_d'), target: closeRef },
+    { id: 'hud', title: t('tut_7_t'), text: t('tut_7_d', { bonus: ECONOMY.COMPLIANT_BONUS, penalty: ECONOMY.PENALTY }), target: hudRef },
+    { id: 'ctrl', title: t('tut_8_t'), text: t('tut_8_d'), target: ctrlRef },
+  ];
 
   /* ---------- Boucle de temps ---------- */
   useEffect(() => {
@@ -157,7 +178,9 @@ function PlayInner({ level }: { level: LevelDef }) {
   }, [hud.locked, s.status, s.position, isAdvanced]);
 
   /* ---------- Actions du joueur ---------- */
-  const price = currentPrice(rt, s);
+  /* Pendant le tutoriel, le graphique montre quelques bougies déjà formées (sinon il est vide avant le départ). */
+  const viewS = phase === 'tour' ? { ...s, closed: Math.min(rt.n - 1, 7), tick: 0 } : s;
+  const price = currentPrice(rt, viewS);
   const dir = s.position ? (s.position.type === 'buy' ? 1 : -1) : 0;
   const livePnl = s.position ? (price - s.position.entryPrice) * dir * ECONOMY.POINT_VALUE : 0;
   const canTrade = game.balance > 0 && s.status === 'running' && !s.position;
@@ -239,12 +262,13 @@ function PlayInner({ level }: { level: LevelDef }) {
 
   return (
     <Screen>
-      <HudBar compact liveDelta={livePnl} />
+      <View ref={rootRef} collapsable={false} style={{ flex: 1 }}>
+      <View ref={hudRef} collapsable={false}><HudBar compact liveDelta={livePnl} /></View>
       <TopBar
         title={name}
         onBack={requestExit}
-        right={phase === 'play' && s.status !== 'ended' ? (
-          <View style={styles.ctrl}>
+        right={(phase === 'play' || phase === 'tour') && s.status !== 'ended' ? (
+          <View ref={ctrlRef} collapsable={false} style={styles.ctrl}>
             <Pressable accessibilityRole="button" accessibilityLabel={t('play_speed')} onPress={() => { reward.tap(); const to = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; setSpeed(to); track({ e: 'speed', track: tk, to }); }} style={styles.pill}>
               <Text style={styles.pillText}>×{speed}</Text>
             </Pressable>
@@ -274,7 +298,7 @@ function PlayInner({ level }: { level: LevelDef }) {
       </View>
 
       <View style={styles.priceRow}>
-        <Text style={styles.price}>{price.toFixed(2)}</Text>
+        <View ref={priceRef} collapsable={false}><Text style={styles.price}>{price.toFixed(2)}</Text></View>
         {s.position ? (
           <View style={styles.posRow}>
             <Text style={[styles.pnl, { color: livePnl >= 0 ? COLORS.bull : COLORS.bear }]}>
@@ -288,10 +312,11 @@ function PlayInner({ level }: { level: LevelDef }) {
       </View>
 
       <Animated.View style={{ alignSelf: 'center', width: chartW, transform: [{ translateX: shake.x }] }}>
-        <View style={styles.frame}>
+        <View ref={chartRef} collapsable={false} style={styles.frame}>
           <Chart
-            rt={rt} state={s} width={chartW} height={CHART_H} preview={inSniperPhase} hideAnswer={sniperActive} opts={opts}
+            rt={rt} state={viewS} width={chartW} height={CHART_H} preview={inSniperPhase} hideAnswer={sniperActive} opts={opts}
             locked={!isAdvanced && hud.locked && !inSniperPhase} lockedLabel={t('hud_target_locked')} patternLabel={patternLabel}
+            buyLabel={t('play_buy').toUpperCase()} sellLabel={t('play_sell').toUpperCase()} zoneLabel={t('chart_zone')}
             playerZone={drawZone ?? sniper?.zone ?? null} playerAnchors={drawAnchors ?? sniper?.anchors ?? null} point1={point1}
           />
           {drawing && <View style={FILL} onStartShouldSetResponder={() => true} onResponderRelease={onTap} accessibilityLabel={t('sniper_step1_zone')} />}
@@ -306,15 +331,17 @@ function PlayInner({ level }: { level: LevelDef }) {
 
       {fb && <TradeFeedback key={fb.id} data={fb} onDone={() => setFb((x) => (x && x.id === fb.id ? null : x))} />}
 
-      <Text style={styles.rule} numberOfLines={2} onPress={() => setShowInfo(true)} accessibilityRole="button">ⓘ {rulesLabel(rt, t)}</Text>
+      <View ref={ruleRef} collapsable={false}>
+        <Text style={styles.rule} numberOfLines={2} onPress={() => setShowInfo(true)} accessibilityRole="button">ⓘ {rulesLabel(rt, t)}</Text>
+      </View>
 
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityLabel={t('play_rules')} onPress={() => { reward.tap(); setShowInfo(true); }} style={styles.info}>
           <Text style={{ color: COLORS.text, fontSize: 16 }}>ⓘ</Text>
         </Pressable>
-        <Btn silent label={t('play_buy')} variant="bull" disabled={!canTrade} onPress={() => open('buy')} style={{ flex: 1 }} />
-        <Btn silent label={t('play_sell')} variant="bear" disabled={!canTrade} onPress={() => open('sell')} style={{ flex: 1 }} />
-        <Btn silent label={t('play_close_trade')} variant="ghost" disabled={!s.position || s.status === 'idle'} onPress={() => dispatch({ type: 'close' })} style={{ flex: 1 }} textStyle={{ fontSize: 12 }} />
+        <View ref={buyRef} collapsable={false} style={{ flex: 1 }}><Btn silent label={t('play_buy')} variant="bull" disabled={!canTrade} onPress={() => open('buy')} /></View>
+        <View ref={sellRef} collapsable={false} style={{ flex: 1 }}><Btn silent label={t('play_sell')} variant="bear" disabled={!canTrade} onPress={() => open('sell')} /></View>
+        <View ref={closeRef} collapsable={false} style={{ flex: 1 }}><Btn silent label={t('play_close_trade')} variant="ghost" disabled={!s.position || s.status === 'idle'} onPress={() => dispatch({ type: 'close' })} textStyle={{ fontSize: 12 }} /></View>
       </View>
 
       {showInfo && (
@@ -333,7 +360,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         </View>
       )}
 
-      {phase === 'tour' && <TourOverlay onFinish={finishTour} />}
+      {phase === 'tour' && <GuidedTour steps={tourSteps} rootRef={rootRef} onStep={(i) => track({ e: 'tour', track: tk, step: String(i + 1) })} onEnd={endTour} />}
 
       {phase === 'sniper_intro' && (
         <View style={styles.overlay}>
@@ -387,6 +414,7 @@ function PlayInner({ level }: { level: LevelDef }) {
           onMap={() => router.replace('/map')}
         />
       )}
+      </View>
     </Screen>
   );
 }

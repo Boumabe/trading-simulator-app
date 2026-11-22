@@ -30,7 +30,8 @@ export type AppEvent =
   | { e: 'lesson_start'; track: Track }
   | { e: 'lesson_done'; track: Track; correct: number }
   | { e: 'lesson_skip'; track: Track }
-  | { e: 'source'; v: 'friend' | 'social' | 'store' | 'other' };
+  | { e: 'source'; v: 'friend' | 'social' | 'store' | 'other' }
+  | { e: 'tour'; track: Track; step: string };
 
 /* ---------- Compteurs imbriqués (fonctions pures, testées) ---------- */
 
@@ -155,6 +156,9 @@ export function countsFor(ev: AppEvent): Counts {
       break;
     case 'source':
       bump(c, ['c', 'source', ev.v]);
+      break;
+    case 'tour':
+      bump(c, ['c', 'tour', ev.step, ev.track]);
       break;
     case 'rate':
       bump(c, ['diff', ev.levelId, ev.v]);

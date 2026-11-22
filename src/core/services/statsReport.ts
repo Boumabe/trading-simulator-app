@@ -13,6 +13,7 @@ export function num(c: Counts | undefined, ...path: (string | number)[]): number
 const TRACKS = ['new', 'debutant', 'intermediaire', 'avance'] as const;
 export const TRACK_LABEL: Record<(typeof TRACKS)[number], string> = { new: 'Sans profil', debutant: 'Débutant', intermediaire: 'Intermédiaire', avance: 'Avancé' };
 const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)} %` : '–');
+const sumTour = (c: Counts | undefined, step: string) => TRACKS.reduce((n, t) => n + num(c, 'c', 'tour', step, t), 0);
 const sumTracks = (c: Counts | undefined, ev: string) => TRACKS.reduce((n, t) => n + num(c, 'c', ev, t), 0);
 
 export interface Section { title: string; lines: string[] }
@@ -53,6 +54,7 @@ export function buildReport(s: Counts): Section[] {
     lines: [
       `Provenance : amis ${num(s, 'c', 'source', 'friend')} · réseaux sociaux ${num(s, 'c', 'source', 'social')} · Play Store ${num(s, 'c', 'source', 'store')} · autre ${num(s, 'c', 'source', 'other')}`,
       `Leçon 0 : commencée ${sumTracks(s, 'lesson_start')} · terminée ${sumTracks(s, 'lesson_done')} · passée ${sumTracks(s, 'lesson_skip')}`,
+      `Tutoriel guidé (joueurs arrivés à chaque étape) : ${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `${n}:${sumTour(s, String(n))}`).join('  ')} · terminé ${sumTour(s, 'done')} · passé ${sumTour(s, 'skip')}`,
       `Scores de la leçon (bonnes réponses : joueurs) : ${[0, 1, 2, 3].map((n) => `${n}:${num(s, 'c', 'lesson_score', n)}`).join('  ')}`,
     ],
   });
