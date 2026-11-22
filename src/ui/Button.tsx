@@ -22,7 +22,7 @@ export function Btn({ label, onPress, variant = 'gold', disabled, style, textSty
         onPressIn={() => to(0.95)}
         onPressOut={() => to(1)}
         onPress={() => { if (!silent) reward.tap(); onPress(); }}
-        style={[styles.base, small && styles.small, { backgroundColor: bg, opacity: disabled ? 0.4 : 1 }, variant === 'ghost' && styles.ghost]}
+        style={[styles.base, small && styles.small, { backgroundColor: bg, opacity: disabled ? 0.4 : 1 }, variant === 'ghost' ? styles.ghost : !disabled && { shadowColor: bg, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 }]}
       >
         <Text style={[styles.text, small && { fontSize: 12 }, { color: variant === 'ghost' ? COLORS.text : COLORS.ink }, textStyle]}>{label}</Text>
       </Pressable>
