@@ -92,3 +92,13 @@ test('leçon 0 et provenance : uniquement sous la clé « c » (règles Firestor
   assert.deepEqual(countsFor({ e: 'lesson_done', track: 'debutant', correct: 2 }), { c: { lesson_done: { debutant: 1 }, lesson_score: { '2': 1 } } });
   assert.deepEqual(countsFor({ e: 'source', v: 'social' }), { c: { source: { social: 1 } } });
 });
+
+test('provenance : chaque source détaillée et « skip » restent sous la clé « c »', () => {
+  for (const v of ['friend', 'tiktok', 'facebook', 'instagram', 'youtube', 'whatsapp', 'store', 'other', 'skip'] as const) {
+    assert.deepEqual(countsFor({ e: 'source', v }), { c: { source: { [v]: 1 } } });
+  }
+  const text = reportToText(buildReport({ c: { source: { tiktok: 5, friend: 3, skip: 2 } } }));
+  assert.ok(text.includes('TikTok 5'));
+  assert.ok(text.includes('ami/famille 3'));
+  assert.ok(text.includes('passée : 2 (sur 10 nouveaux joueurs)'));
+});

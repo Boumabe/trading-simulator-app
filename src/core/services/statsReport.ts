@@ -16,6 +16,9 @@ const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)} %` 
 const sumTour = (c: Counts | undefined, step: string) => TRACKS.reduce((n, t) => n + num(c, 'c', 'tour', step, t), 0);
 const sumTracks = (c: Counts | undefined, ev: string) => TRACKS.reduce((n, t) => n + num(c, 'c', ev, t), 0);
 
+const SOURCE_LABEL = { friend: 'ami/famille', tiktok: 'TikTok', facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', whatsapp: 'WhatsApp/Telegram', store: 'Play Store', other: 'autre', social: 'réseaux sociaux (ancien choix)' } as const;
+const SOURCE_KEYS = Object.keys(SOURCE_LABEL) as (keyof typeof SOURCE_LABEL)[];
+
 export interface Section { title: string; lines: string[] }
 
 /** Rapport en texte lisible (affiché dans l'écran et partageable). Toutes les valeurs viennent des compteurs, rien n'est deviné. */
@@ -52,7 +55,8 @@ export function buildReport(s: Counts): Section[] {
   out.push({
     title: 'Provenance et Leçon 0',
     lines: [
-      `Provenance : amis ${num(s, 'c', 'source', 'friend')} · réseaux sociaux ${num(s, 'c', 'source', 'social')} · Play Store ${num(s, 'c', 'source', 'store')} · autre ${num(s, 'c', 'source', 'other')}`,
+      `Provenance (réponses) : ${(['friend', 'tiktok', 'facebook', 'instagram', 'youtube', 'whatsapp', 'store', 'other', 'social'] as const).map((k) => `${SOURCE_LABEL[k]} ${num(s, 'c', 'source', k)}`).join(' · ')}`,
+      `Question de provenance passée : ${num(s, 'c', 'source', 'skip')} (sur ${SOURCE_KEYS.reduce((n, k) => n + num(s, 'c', 'source', k), 0) + num(s, 'c', 'source', 'skip')} nouveaux joueurs)`,
       `Leçon 0 : commencée ${sumTracks(s, 'lesson_start')} · terminée ${sumTracks(s, 'lesson_done')} · passée ${sumTracks(s, 'lesson_skip')}`,
       `Tutoriel guidé (joueurs arrivés à chaque étape) : ${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `${n}:${sumTour(s, String(n))}`).join('  ')} · terminé ${sumTour(s, 'done')} · passé ${sumTour(s, 'skip')}`,
       `Scores de la leçon (bonnes réponses : joueurs) : ${[0, 1, 2, 3].map((n) => `${n}:${num(s, 'c', 'lesson_score', n)}`).join('  ')}`,

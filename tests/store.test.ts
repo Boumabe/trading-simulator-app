@@ -226,3 +226,9 @@ test('leçon 0 et erreurs : valeurs par défaut sûres au chargement', () => {
   assert.deepEqual(sanitize({}).mistakes, {});
   assert.equal(finishLesson(ready()).lessonDone, true);
 });
+
+test('provenance : la question n\'est posée qu\'une fois (valeur mémorisée et sans effet sur les anciennes sauvegardes)', () => {
+  assert.equal(sanitize({}).sourceAsked, false);
+  assert.equal(sanitize({ sourceAsked: true }).sourceAsked, true);
+  assert.equal(initialState().sourceAsked, false);
+});

@@ -11,6 +11,9 @@ import { getDb } from '../firebase/config';
 
 export type Track = 'new' | 'debutant' | 'intermediaire' | 'avance';
 export type Difficulty = 'easy' | 'ok' | 'hard';
+/** Comment le joueur a connu Simtra (« skip » = a passé la question). « social » = ancien choix, gardé pour la lecture des chiffres. */
+export type SourceValue = 'friend' | 'tiktok' | 'facebook' | 'instagram' | 'youtube' | 'whatsapp' | 'store' | 'other' | 'social' | 'skip';
+export const SOURCE_CHOICES = ['friend', 'tiktok', 'facebook', 'instagram', 'youtube', 'whatsapp', 'store', 'other'] as const;
 
 export type AppEvent =
   | { e: 'open'; track: Track; newPlayer: boolean; retDay: number | null }
@@ -30,7 +33,7 @@ export type AppEvent =
   | { e: 'lesson_start'; track: Track }
   | { e: 'lesson_done'; track: Track; correct: number }
   | { e: 'lesson_skip'; track: Track }
-  | { e: 'source'; v: 'friend' | 'social' | 'store' | 'other' }
+  | { e: 'source'; v: SourceValue }
   | { e: 'tour'; track: Track; step: string };
 
 /* ---------- Compteurs imbriqués (fonctions pures, testées) ---------- */
