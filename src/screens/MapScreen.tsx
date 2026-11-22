@@ -81,7 +81,11 @@ export default function MapScreen() {
   }, [hint]);
 
   const statusOf = (l: LevelDef): Status => ((game.levels[l.id]?.stars ?? 0) >= 1 ? 'done' : isUnlocked(game, l.id, recommended) ? 'open' : 'locked');
-  const nextLevel = useMemo(() => LEVELS.find((l) => statusOf(l) === 'open'), [game.levels, recommended]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Prochain niveau : à partir du point de départ du profil (sinon un avancé, tout ouvert, se verrait proposer le niveau 1).
+  const nextLevel = useMemo(
+    () => LEVELS.find((l) => l.id >= recommended && statusOf(l) === 'open') ?? LEVELS.find((l) => statusOf(l) === 'open'),
+    [game.levels, game.choice, recommended], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const nextName = useLevelName(nextLevel?.id ?? 1);
   const bookId = sheet ? sheet.strategyId ?? sheet.quizId : undefined;
   const inBook = !!bookId && STRATEGIES.some((b) => b.id === bookId);

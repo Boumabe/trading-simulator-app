@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useI18n } from '../core/i18n';
 import { reward } from '../core/services/feedback';
 import { useActions, useGame } from '../core/store/game';
+import { canRedoPlacement } from '../core/store/logic';
 import type { LangSetting } from '../core/types';
 import { Btn } from '../ui/Button';
 import { Screen, TopBar } from '../ui/Screen';
@@ -15,7 +16,10 @@ type Confirm = null | 'capital' | 'all';
 export default function SettingsScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { settings } = useGame();
+  const game = useGame();
+  const { settings } = game;
+  const taps = useRef(0);
+  const canRedo = canRedoPlacement(game);
   const { setSettings, resetCapital, resetAll } = useActions();
   const [confirm, setConfirm] = useState<Confirm>(null);
   const langs: LangSetting[] = ['auto', 'fr', 'en', 'es'];
@@ -34,6 +38,19 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Row label={t('settings_sound')} value={settings.sound} onChange={(v) => setSettings({ sound: v })} />
           <Row label={t('settings_haptics')} value={settings.haptics} onChange={(v) => setSettings({ haptics: v })} last />
+        </View>
+
+        <View style={[styles.card, { marginTop: 12 }]}>
+          <Row label={t('settings_analytics')} value={settings.analytics} onChange={(v) => setSettings({ analytics: v })} last />
+          <Text style={[styles.cardDesc, { marginTop: 6, marginBottom: 0 }]}>{t('settings_analytics_desc')}</Text>
+        </View>
+
+        <View style={[styles.card, { marginTop: 12 }]}>
+          {canRedo ? (
+            <Btn variant="ghost" label={t('settings_redo_test')} onPress={() => router.push('/onboarding')} />
+          ) : (
+            <Text style={[styles.cardDesc, { marginBottom: 0 }]}>{t('settings_redo_none')}</Text>
+          )}
         </View>
 
         <Text style={styles.section}>{t('settings_language')}</Text>
@@ -58,7 +75,10 @@ export default function SettingsScreen() {
 
         <Text style={styles.section}>{t('disclaimer_title')}</Text>
         <Text style={styles.disclaimer}>{t('disclaimer_text')}</Text>
-        <Text style={styles.version}>Simtra v{Constants.expoConfig?.version ?? '2.0.0'}</Text>
+        {/* 5 appuis sur la version : tableau de bord des statistiques (réservé au créateur, sans lien visible). */}
+        <Pressable accessibilityRole="button" onPress={() => { taps.current += 1; if (taps.current >= 5) { taps.current = 0; router.push('/stats'); } }}>
+          <Text style={styles.version}>Simtra v{Constants.expoConfig?.version ?? '2.0.0'}</Text>
+        </Pressable>
       </ScrollView>
 
       {confirm && (

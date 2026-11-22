@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useI18n } from '../core/i18n';
 import { haptic, reward } from '../core/services/feedback';
 import { Btn } from './Button';
@@ -20,6 +20,8 @@ export interface ResultProps {
   improved: boolean;
   stats: ResultStat[];
   note?: string;
+  /** Note de difficulté en un geste (mesure sans commentaire écrit). */
+  onRate?: (v: 'easy' | 'ok' | 'hard') => void;
   onReplay: () => void;
   onNext?: () => void;
   onMap: () => void;
@@ -32,6 +34,7 @@ export function ResultOverlay(p: ResultProps) {
   const [burst, setBurst] = useState(0);
   const xp = useCountUp(p.xp, 900);
   const cardRef = useRef<View>(null);
+  const [rated, setRated] = useState(false);
 
   useEffect(() => {
     Animated.spring(scale, { toValue: 1, friction: 6, tension: 100, useNativeDriver: ND }).start();
@@ -62,6 +65,20 @@ export function ResultOverlay(p: ResultProps) {
           {p.xp > 0 ? <Text style={styles.xp}>+{Math.round(xp)} XP {p.improved ? '🚀' : ''}</Text> : null}
           <Text style={styles.note}>{p.note ?? t(p.passed ? 'play_discipline_note' : 'result_fail_tip')}</Text>
           </ShareFrame>
+          {p.onRate ? (
+            <View style={styles.rate}>
+              <Text style={styles.rateTitle}>{rated ? t('rate_thanks') : t('rate_title')}</Text>
+              {!rated && (
+                <View style={styles.rateRow}>
+                  {(['easy', 'ok', 'hard'] as const).map((v) => (
+                    <Pressable key={v} accessibilityRole="button" onPress={() => { reward.tap(); setRated(true); p.onRate?.(v); }} style={styles.ratePill}>
+                      <Text style={styles.ratePillText}>{t(`rate_${v}`)}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : null}
           <ShareButton targetRef={cardRef} title={p.title} style={styles.btn} />
           {p.passed && p.onNext ? <Btn label={t('result_next')} onPress={p.onNext} style={styles.btn} /> : null}
           <Btn label={t('play_replay')} onPress={p.onReplay} variant={p.passed && p.onNext ? 'ghost' : 'gold'} style={styles.btn} />
@@ -84,4 +101,9 @@ const styles = StyleSheet.create({
   xp: { color: COLORS.gold, fontSize: 22, fontWeight: '900', marginTop: 14 },
   note: { color: COLORS.dim, fontSize: 12, lineHeight: 17, textAlign: 'center', marginVertical: 14 },
   btn: { alignSelf: 'stretch', marginTop: 8 },
+  rate: { alignSelf: 'stretch', alignItems: 'center', marginBottom: 6 },
+  rateTitle: { color: COLORS.dim, fontSize: 12, marginBottom: 8 },
+  rateRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
+  ratePill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.panelAlt },
+  ratePillText: { color: COLORS.text, fontSize: 12, fontWeight: '700' },
 });

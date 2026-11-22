@@ -13,7 +13,8 @@ import { useI18n, useLevelName } from '../core/i18n';
 import { routeForLevel } from '../core/nav';
 import { rulesLabel } from '../core/rulesText';
 import { haptic, reward, sfx } from '../core/services/feedback';
-import { useActions, useGame } from '../core/store/game';
+import { trackOf, useActions, useGame } from '../core/store/game';
+import { track } from '../core/services/analytics';
 import { isUnlocked, type LevelResult } from '../core/store/logic';
 import type { Anchor, Zone } from '../core/types';
 import { RECOMMENDED_START } from '../core/data/levels';
@@ -61,8 +62,15 @@ function PlayInner({ level }: { level: LevelDef }) {
   const [s, dispatch] = useReducer(reducer, undefined, initSession);
 
   const passesBefore = game.levels[level.id]?.passes ?? 0;
-  const [phase, setPhase] = useState<Phase>(() => (!game.seenTour ? 'tour' : rt.sniperEligible && passesBefore > 0 ? 'sniper_intro' : 'play'));
-  const [speed, setSpeed] = useState<Speed>(1);
+  const tk = trackOf(game.choice);
+  const isBeginner = game.choice === 'debutant';
+  const isAdvanced = game.choice === 'avance';
+  /** Avancé : on dessine sa zone dès la 1re partie (aucune réponse donnée). Les autres : après une première réussite. */
+  const sniperFirst = rt.sniperEligible && (passesBefore > 0 || isAdvanced);
+  /** Le tutoriel d'interface ne s'adresse qu'au débutant ; les autres ne le voient pas. */
+  const [phase, setPhase] = useState<Phase>(() => (isBeginner && !game.seenTour ? 'tour' : sniperFirst ? 'sniper_intro' : 'play'));
+  /** Débutant : vitesse ×0,5 tant qu'il n'a pas validé le niveau (il peut l'accélérer ; on mesure s'il le fait). */
+  const [speed, setSpeed] = useState<Speed>(isBeginner && passesBefore === 0 ? 0.5 : 1);
   const [sniper, setSniper] = useState<Sniper | null>(null);
   const [drawZone, setDrawZone] = useState<Zone | null>(null);
   const [drawAnchors, setDrawAnchors] = useState<[Anchor, Anchor] | null>(null);
@@ -84,11 +92,16 @@ function PlayInner({ level }: { level: LevelDef }) {
 
   /* ---------- Démarrage : tutoriel → (mode Sniper) → jeu ---------- */
   const beginAfterTour = useCallback(() => {
-    if (rt.sniperEligible && passesBefore > 0) setPhase('sniper_intro');
+    if (sniperFirst) setPhase('sniper_intro');
     else setPhase('play');
-  }, [rt.sniperEligible, passesBefore]);
+  }, [sniperFirst]);
 
-  useEffect(() => { if (phase === 'play' && s.status === 'idle') dispatch({ type: 'start' }); }, [phase, s.status]);
+  useEffect(() => {
+    if (phase === 'play' && s.status === 'idle') {
+      dispatch({ type: 'start' });
+      track({ e: 'level_start', track: tk, levelId: level.id });
+    }
+  }, [phase, s.status, tk, level.id]);
 
   const finishTour = () => { actions.markTourSeen(); beginAfterTour(); };
 
@@ -136,12 +149,12 @@ function PlayInner({ level }: { level: LevelDef }) {
   const wasLocked = useRef(false);
   const lastCue = useRef(0);
   useEffect(() => {
-    if (s.status === 'running' && hud.locked && !wasLocked.current && !s.position && Date.now() - lastCue.current > 1500) {
+    if (!isAdvanced && s.status === 'running' && hud.locked && !wasLocked.current && !s.position && Date.now() - lastCue.current > 1500) {
       lastCue.current = Date.now();
       reward.lock();
     }
     wasLocked.current = hud.locked;
-  }, [hud.locked, s.status, s.position]);
+  }, [hud.locked, s.status, s.position, isAdvanced]);
 
   /* ---------- Actions du joueur ---------- */
   const price = currentPrice(rt, s);
@@ -167,6 +180,7 @@ function PlayInner({ level }: { level: LevelDef }) {
   }, [requestExit]);
 
   const quit = () => {
+    track({ e: 'level_quit', track: tk, levelId: level.id });
     if (s.position) {
       const next = reducer(s, { type: 'close' });
       const ev = next.events[next.events.length - 1];
@@ -179,7 +193,7 @@ function PlayInner({ level }: { level: LevelDef }) {
     dispatch({ type: 'reset' });
     processed.current = 0;
     setResult(null); setFb(null); setSniper(null); setDrawZone(null); setDrawAnchors(null); setPoint1(null);
-    if (rt.sniperEligible && (game.levels[level.id]?.passes ?? 0) > 0) setPhase('sniper_intro'); else setPhase('play');
+    if (sniperFirst) setPhase('sniper_intro'); else setPhase('play');
   };
 
   const next = LEVELS.find((l) => l.id === level.id + 1);
@@ -231,7 +245,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         onBack={requestExit}
         right={phase === 'play' && s.status !== 'ended' ? (
           <View style={styles.ctrl}>
-            <Pressable accessibilityRole="button" accessibilityLabel={t('play_speed')} onPress={() => { reward.tap(); setSpeed((v) => SPEEDS[(SPEEDS.indexOf(v) + 1) % SPEEDS.length]); }} style={styles.pill}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('play_speed')} onPress={() => { reward.tap(); const to = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; setSpeed(to); track({ e: 'speed', track: tk, to }); }} style={styles.pill}>
               <Text style={styles.pillText}>×{speed}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={s.status === 'paused' ? t('play_resume') : t('play_pause')} onPress={() => { reward.tap(); dispatch({ type: s.status === 'paused' ? 'resume' : 'pause' }); }} style={styles.pill}>
@@ -253,7 +267,7 @@ function PlayInner({ level }: { level: LevelDef }) {
 
       <View style={styles.chips}>
         <Text style={styles.chip}>{chipText}</Text>
-        <Text style={[styles.chip, hud.locked && styles.chipOn]}>{hud.locked ? t('hud_target_locked') : t('hud_out_of_zone')}</Text>
+        {!isAdvanced && <Text style={[styles.chip, hud.locked && styles.chipOn]}>{hud.locked ? t('hud_target_locked') : t('hud_out_of_zone')}</Text>}
         {s.combo >= 2 && <Text style={[styles.chip, { color: COLORS.warn, borderColor: COLORS.warn }]}>🔥 {t('combo_x', { n: s.combo })}</Text>}
         {sniperActive && <Text style={[styles.chip, styles.chipOn]}>{t('sniper_badge')}</Text>}
         {s.status === 'paused' && <Text style={[styles.chip, { color: COLORS.warn, borderColor: COLORS.warn }]}>{t('play_paused')}</Text>}
@@ -277,7 +291,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         <View style={styles.frame}>
           <Chart
             rt={rt} state={s} width={chartW} height={CHART_H} preview={inSniperPhase} hideAnswer={sniperActive} opts={opts}
-            locked={hud.locked && !inSniperPhase} lockedLabel={t('hud_target_locked')} patternLabel={patternLabel}
+            locked={!isAdvanced && hud.locked && !inSniperPhase} lockedLabel={t('hud_target_locked')} patternLabel={patternLabel}
             playerZone={drawZone ?? sniper?.zone ?? null} playerAnchors={drawAnchors ?? sniper?.anchors ?? null} point1={point1}
           />
           {drawing && <View style={FILL} onStartShouldSetResponder={() => true} onResponderRelease={onTap} accessibilityLabel={t('sniper_step1_zone')} />}
@@ -367,6 +381,7 @@ function PlayInner({ level }: { level: LevelDef }) {
             { label: t('play_trades_count'), value: String(st.count) },
           ]}
           note={st.count === 0 ? t('result_no_trade') : undefined}
+          onRate={(v) => track({ e: 'rate', track: tk, levelId: level.id, v })}
           onReplay={replay}
           onNext={goNext}
           onMap={() => router.replace('/map')}

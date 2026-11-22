@@ -57,4 +57,10 @@ export const LEVELS: LevelDef[] = [
 export type StartChoice = 'debutant' | 'intermediaire' | 'avance';
 export const RECOMMENDED_START: Record<StartChoice, number> = { debutant: 1, intermediaire: 8, avance: 33 };
 
+/**
+ * Paliers ouverts d'emblée selon le profil (le reste suit la chaîne : niveau précédent validé).
+ * Choix de conception, pas une donnée : à réévaluer avec les statistiques (niveaux ouverts mais jamais lancés, etc.).
+ */
+export const OPEN_TIER: Record<StartChoice, number> = { debutant: 0, intermediaire: 2, avance: TIER_COUNT };
+
 export const levelById = (id: number): LevelDef | undefined => LEVELS.find((l) => l.id === id);
