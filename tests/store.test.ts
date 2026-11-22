@@ -241,3 +241,11 @@ test('aide « cible verrouillée » : permanente (débutant), jusqu\'à la 1re r
   assert.equal(showTargetCue('intermediaire', 1), false);
   assert.equal(showTargetCue('avance', 0), false);
 });
+
+test('provenance mémorisée : valeur courte acceptée, valeurs invalides ignorées', () => {
+  assert.equal(sanitize({ source: 'tiktok' }).source, 'tiktok');
+  assert.equal(sanitize({ source: 'unknown' }).source, 'unknown');
+  assert.equal(sanitize({ source: 42 }).source, null);
+  assert.equal(sanitize({ source: 'x'.repeat(50) }).source, null);
+  assert.equal(initialState().source, null);
+});

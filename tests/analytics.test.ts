@@ -23,8 +23,8 @@ test('mapNumbers transforme chaque nombre et garde la structure', () => {
 });
 
 test('événement open : joueur, cohorte et rétention', () => {
-  assert.deepEqual(countsFor({ e: 'open', track: 'new', newPlayer: true, retDay: null }), { c: { open: { new: 1 } }, cohort: { n: 1 } });
-  assert.deepEqual(countsFor({ e: 'open', track: 'debutant', newPlayer: false, retDay: 7 }), { c: { open: { debutant: 1 } }, ret: { d7: 1 } });
+  assert.deepEqual(countsFor({ e: 'open', track: 'new', source: 'none', newPlayer: true, retDay: null }), { c: { open: { new: 1 } }, cohort: { n: 1 } });
+  assert.deepEqual(countsFor({ e: 'open', track: 'debutant', source: 'tiktok', newPlayer: false, retDay: 7 }), { c: { open: { debutant: 1 } }, ret: { d7: 1, src: { d7: { tiktok: 1 } }, trk: { d7: { debutant: 1 } } } });
 });
 
 test('événement level_end : réussite, étoiles et discipline par niveau et par profil', () => {
@@ -83,7 +83,7 @@ test('leçon 0 et provenance : uniquement sous la clé « c » (règles Firestor
   const evs = [
     { e: 'lesson_start', track: 'debutant' }, { e: 'lesson_done', track: 'debutant', correct: 2 },
     { e: 'lesson_skip', track: 'new' }, { e: 'source', v: 'social' },
-    { e: 'open', track: 'new', newPlayer: true, retDay: 1 }, { e: 'level_start', track: 'avance', levelId: 2 },
+    { e: 'open', track: 'new', source: 'none', newPlayer: true, retDay: 1 }, { e: 'cohort_src', v: 'tiktok' }, { e: 'cohort_trk', v: 'avance' }, { e: 'tour', track: 'new', step: '1' }, { e: 'level_start', track: 'avance', levelId: 2 },
     { e: 'trade', track: 'avance', levelId: 2, reason: 'ok_zone', compliant: true }, { e: 'speed', track: 'new', to: 0.5 },
     { e: 'rate', track: 'new', levelId: 2, v: 'ok' }, { e: 'diag_answer', qid: 'rr', result: 'right' }, { e: 'diag_done', correct: 3, place: 'debutant' },
     { e: 'level_end', track: 'new', levelId: 1, stars: 1, discipline: 50, passed: true }, { e: 'quiz_end', track: 'new', levelId: 25, stars: 1 },
@@ -101,4 +101,20 @@ test('provenance : chaque source détaillée et « skip » restent sous la clé 
   assert.ok(text.includes('TikTok 5'));
   assert.ok(text.includes('ami/famille 3'));
   assert.ok(text.includes('passée : 2 (sur 10 nouveaux joueurs)'));
+});
+
+test('rétention par provenance et par profil : compteurs et rapport', () => {
+  assert.deepEqual(countsFor({ e: 'cohort_src', v: 'tiktok' }), { cohort: { src: { tiktok: 1 } } });
+  assert.deepEqual(countsFor({ e: 'cohort_trk', v: 'debutant' }), { cohort: { trk: { debutant: 1 } } });
+  const stats: Counts = {
+    cohort: { n: 14, src: { tiktok: 8, friend: 3, skip: 1, unknown: 1 }, trk: { debutant: 9, intermediaire: 3 } },
+    ret: { d1: 4, src: { d1: { tiktok: 3, friend: 1 }, d7: { tiktok: 1 } }, trk: { d1: { debutant: 3, intermediaire: 1 }, d7: { debutant: 1 } } },
+  };
+  const text = reportToText(buildReport(stats));
+  assert.ok(text.includes('TikTok : 8 joueurs · D1 3 (38 %) · D7 1 (13 %) · D30 0 (0 %)'));
+  assert.ok(text.includes('ami/famille : 3 joueurs · D1 1 (33 %)'));
+  assert.ok(text.includes('pas encore répondu : 1 joueur'));
+  assert.ok(text.includes('Débutant : 9 joueurs · D1 3 (33 %) · D7 1 (11 %)'));
+  assert.ok(text.includes('peu de joueurs : tendance seulement'));
+  assert.ok(buildReport({}).some((sec) => sec.title === 'Rétention par provenance' && sec.lines.includes('Pas encore de données.')));
 });

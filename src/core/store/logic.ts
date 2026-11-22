@@ -27,6 +27,8 @@ export interface Persisted {
   lessonDone: boolean;
   /** Question « Comment as-tu connu Simtra ? » déjà posée (répondue ou passée) : on ne la repose pas. */
   sourceAsked: boolean;
+  /** Provenance du joueur : sa réponse, « skip » (passée), « unknown » (installé avant la question) ou null (pas encore posée). Sert à la rétention par provenance. */
+  source: string | null;
   settings: { sound: boolean; haptics: boolean; lang: LangSetting; analytics: boolean };
   seenTour: boolean;
   checklist: number[];
@@ -71,6 +73,7 @@ export const defaultPersisted = (): Persisted => ({
   mistakes: {},
   lessonDone: false,
   sourceAsked: false,
+  source: null,
   settings: { sound: true, haptics: true, lang: 'auto', analytics: true },
   seenTour: false,
   checklist: [],
@@ -347,6 +350,7 @@ export function sanitize(raw: unknown): Persisted {
         : {},
     lessonDone: !!r.lessonDone,
     sourceAsked: !!r.sourceAsked,
+    source: typeof r.source === 'string' && r.source.length <= 20 ? r.source : null,
     settings: {
       sound: r.settings?.sound !== false,
       haptics: r.settings?.haptics !== false,
