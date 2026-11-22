@@ -6,7 +6,7 @@ import { dictionary } from '../src/core/i18n/dictionary';
 test('leçon 0 : tous les textes existent en fr, en, es', () => {
   const keys = ['lesson_title', 'lesson_progress', 'lesson_next', 'lesson_skip', 'lesson_quiz_title', 'lesson_right', 'lesson_wrong', 'lesson_result_title', 'lesson_result_score', 'lesson_result_text', 'lesson_go',
     'lesson_lbl_high', 'lesson_lbl_close', 'lesson_lbl_open', 'lesson_lbl_low', 'lesson_lbl_support', 'lesson_bull', 'lesson_bear', 'map_lesson_title', 'map_lesson_sub',
-    'profile_top_mistake', 'profile_top_mistake_count', 'profile_top_mistake_none', 'profile_honest', 'ob_src_title', 'ob_src_friend', 'ob_src_social', 'ob_src_store', 'ob_src_other'];
+    'profile_top_mistake', 'profile_top_mistake_count', 'profile_top_mistake_none', 'profile_honest', 'ob_src_title', 'ob_src_sub', 'ob_src_skip', 'ob_src_friend', 'ob_src_tiktok', 'ob_src_facebook', 'ob_src_instagram', 'ob_src_youtube', 'ob_src_whatsapp', 'ob_src_store', 'ob_src_other'];
   for (let i = 1; i <= LESSON_CARD_COUNT; i++) keys.push(`lesson_s${i}_t`, `lesson_s${i}_d`);
   for (const q of LESSON_QUESTIONS) {
     keys.push(`${q.id}_q`, `${q.id}_why`);

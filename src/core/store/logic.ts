@@ -25,6 +25,8 @@ export interface Persisted {
   mistakes: Record<string, number>;
   /** Leçon 0 (lecture d'une bougie) terminée ou passée. */
   lessonDone: boolean;
+  /** Question « Comment as-tu connu Simtra ? » déjà posée (répondue ou passée) : on ne la repose pas. */
+  sourceAsked: boolean;
   settings: { sound: boolean; haptics: boolean; lang: LangSetting; analytics: boolean };
   seenTour: boolean;
   checklist: number[];
@@ -68,6 +70,7 @@ export const defaultPersisted = (): Persisted => ({
   stats: { trades: 0, compliant: 0, bestCombo: 0, sessions: 0, perfect: 0, sniper: 0, quizPerfect: 0 },
   mistakes: {},
   lessonDone: false,
+  sourceAsked: false,
   settings: { sound: true, haptics: true, lang: 'auto', analytics: true },
   seenTour: false,
   checklist: [],
@@ -332,6 +335,7 @@ export function sanitize(raw: unknown): Persisted {
         ? Object.fromEntries(Object.entries(r.mistakes as Record<string, unknown>).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0).map(([k, v]) => [k, Math.floor(v as number)]))
         : {},
     lessonDone: !!r.lessonDone,
+    sourceAsked: !!r.sourceAsked,
     settings: {
       sound: r.settings?.sound !== false,
       haptics: r.settings?.haptics !== false,

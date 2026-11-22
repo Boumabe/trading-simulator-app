@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import type { TradeResult } from '../engine/rules';
 import type { StartChoice } from '../data/levels';
 import { setFeedbackPrefs } from '../services/feedback';
-import { persistAndFlush, restorePending, setAnalyticsEnabled, track, type Track } from '../services/analytics';
+import { persistAndFlush, restorePending, setAnalyticsEnabled, track, type SourceValue, type Track } from '../services/analytics';
 import {
   applyPlacement, applyTrade, claimDaily, completeLevel, completeQuiz, dismissBanner, finishLesson as finishLessonState, initialState, refill, resetAll, resetCapital,
   retentionTick, toPersisted, toggleChecklist, touchClock, type DailyReward, type GameState, type LevelResult, type Persisted, type TradeReward,
@@ -18,6 +18,8 @@ export interface GameActions {
   chooseStart(c: StartChoice): void;
   /** « Je débute totalement » : profil débutant sans test. */
   chooseBeginner(): void;
+  /** Réponse à « Comment as-tu connu Simtra ? » (null = question passée). */
+  answerSource(v: Exclude<SourceValue, 'skip' | 'social'> | null): void;
   /** Leçon 0 terminée (nombre de bonnes réponses) ou passée. */
   finishLesson(a: { correct: number }): void;
   skipLesson(): void;
@@ -91,6 +93,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       chooseBeginner: () => {
         commit({ ...ref.current, choice: 'debutant' });
         track({ e: 'beginner_pick' });
+      },
+      answerSource: (v) => {
+        commit({ ...ref.current, sourceAsked: true });
+        track({ e: 'source', v: v ?? 'skip' });
       },
       finishLesson: (a) => {
         commit(finishLessonState(ref.current));
