@@ -23,6 +23,8 @@ export interface Persisted {
   stats: { trades: number; compliant: number; bestCombo: number; sessions: number; perfect: number; sniper: number; quizPerfect: number };
   /** Trades hors règle par raison (sert à « ton erreur n°1 »). */
   mistakes: Record<string, number>;
+  /** Trades et trades conformes par niveau (sert à « tes points faibles »). */
+  levelStats: Record<number, { trades: number; compliant: number }>;
   /** Leçon 0 (lecture d'une bougie) terminée ou passée. */
   lessonDone: boolean;
   /** Question « Comment as-tu connu Simtra ? » déjà posée (répondue ou passée) : on ne la repose pas. */
@@ -71,6 +73,7 @@ export const defaultPersisted = (): Persisted => ({
   achievements: {},
   stats: { trades: 0, compliant: 0, bestCombo: 0, sessions: 0, perfect: 0, sniper: 0, quizPerfect: 0 },
   mistakes: {},
+  levelStats: {},
   lessonDone: false,
   sourceAsked: false,
   source: null,
@@ -150,6 +153,10 @@ export function applyTrade(s: GameState, a: { trade: TradeResult; combo: number;
       bestCombo: Math.max(s.stats.bestCombo, a.combo),
     },
     mistakes: a.trade.compliant ? s.mistakes : { ...s.mistakes, [a.trade.reason]: (s.mistakes[a.trade.reason] ?? 0) + 1 },
+    levelStats: {
+      ...s.levelStats,
+      [a.levelId]: { trades: (s.levelStats[a.levelId]?.trades ?? 0) + 1, compliant: (s.levelStats[a.levelId]?.compliant ?? 0) + (a.trade.compliant ? 1 : 0) },
+    },
   };
   const r = settleRewards(s, next, a.now);
   next = r.state;
@@ -288,6 +295,17 @@ export function topMistake(s: Pick<Persisted, 'mistakes'>): { reason: string; co
   return { reason: entries[0][0], count: entries[0][1], total };
 }
 
+export const WEAK_MIN_TRADES = 3;
+
+/** Niveaux où la discipline est la plus faible (au moins 3 trades, pour ne pas conclure sur du bruit), du plus faible au moins faible. */
+export function weakestLevels(s: Pick<Persisted, 'levelStats'>, n = 3): { levelId: number; trades: number; compliant: number; rate: number }[] {
+  return Object.entries(s.levelStats)
+    .map(([k, v]) => ({ levelId: Number(k), trades: v.trades, compliant: v.compliant, rate: v.trades ? Math.round((v.compliant / v.trades) * 100) : 0 }))
+    .filter((x) => x.trades >= WEAK_MIN_TRADES && x.rate < 100)
+    .sort((a, b) => a.rate - b.rate || b.trades - a.trades || a.levelId - b.levelId)
+    .slice(0, n);
+}
+
 export const finishLesson = (s: GameState): GameState => ({ ...s, lessonDone: true });
 
 /* ---------- Test de niveau ---------- */
@@ -336,6 +354,14 @@ export function sanitize(raw: unknown): Persisted {
     mistakes:
       r.mistakes && typeof r.mistakes === 'object'
         ? Object.fromEntries(Object.entries(r.mistakes as Record<string, unknown>).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0).map(([k, v]) => [k, Math.floor(v as number)]))
+        : {},
+    levelStats:
+      r.levelStats && typeof r.levelStats === 'object'
+        ? Object.fromEntries(
+            Object.entries(r.levelStats as Record<string, { trades?: unknown; compliant?: unknown }>)
+              .map(([k, v]) => [Number(k), { trades: Math.floor(num(v?.trades, 0)), compliant: Math.floor(num(v?.compliant, 0)) }] as const)
+              .filter(([k, v]) => Number.isInteger(k) && k > 0 && v.trades > 0 && v.compliant >= 0 && v.compliant <= v.trades),
+          )
         : {},
     lessonDone: !!r.lessonDone,
     sourceAsked: !!r.sourceAsked,
