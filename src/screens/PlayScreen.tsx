@@ -15,6 +15,7 @@ import { rulesLabel } from '../core/rulesText';
 import { haptic, reward, sfx } from '../core/services/feedback';
 import { trackOf, useActions, useGame } from '../core/store/game';
 import { track } from '../core/services/analytics';
+import { showTargetCue } from '../core/store/logic';
 import { isUnlocked, type LevelResult } from '../core/store/logic';
 import type { Anchor, Zone } from '../core/types';
 import { RECOMMENDED_START } from '../core/data/levels';
@@ -65,6 +66,8 @@ function PlayInner({ level }: { level: LevelDef }) {
   const tk = trackOf(game.choice);
   const isBeginner = game.choice === 'debutant';
   const isAdvanced = game.choice === 'avance';
+  /** Aide « cible verrouillée » : permanente pour le débutant, jusqu'à la 1re réussite du niveau pour l'intermédiaire, jamais pour l'avancé. */
+  const assist = showTargetCue(game.choice, passesBefore);
   /** Avancé : on dessine sa zone dès la 1re partie (aucune réponse donnée). Les autres : après une première réussite. */
   const sniperFirst = rt.sniperEligible && (passesBefore > 0 || isAdvanced);
   /** Le tutoriel d'interface ne s'adresse qu'au débutant ; les autres ne le voient pas. */
@@ -170,12 +173,12 @@ function PlayInner({ level }: { level: LevelDef }) {
   const wasLocked = useRef(false);
   const lastCue = useRef(0);
   useEffect(() => {
-    if (!isAdvanced && s.status === 'running' && hud.locked && !wasLocked.current && !s.position && Date.now() - lastCue.current > 1500) {
+    if (assist && s.status === 'running' && hud.locked && !wasLocked.current && !s.position && Date.now() - lastCue.current > 1500) {
       lastCue.current = Date.now();
       reward.lock();
     }
     wasLocked.current = hud.locked;
-  }, [hud.locked, s.status, s.position, isAdvanced]);
+  }, [hud.locked, s.status, s.position, assist]);
 
   /* ---------- Actions du joueur ---------- */
   /* Pendant le tutoriel, le graphique montre quelques bougies déjà formées (sinon il est vide avant le départ). */
@@ -291,7 +294,7 @@ function PlayInner({ level }: { level: LevelDef }) {
 
       <View style={styles.chips}>
         <Text style={styles.chip}>{chipText}</Text>
-        {!isAdvanced && <Text style={[styles.chip, hud.locked && styles.chipOn]}>{hud.locked ? t('hud_target_locked') : t('hud_out_of_zone')}</Text>}
+        {assist && <Text style={[styles.chip, hud.locked && styles.chipOn]}>{hud.locked ? t('hud_target_locked') : t('hud_out_of_zone')}</Text>}
         {s.combo >= 2 && <Text style={[styles.chip, { color: COLORS.warn, borderColor: COLORS.warn }]}>🔥 {t('combo_x', { n: s.combo })}</Text>}
         {sniperActive && <Text style={[styles.chip, styles.chipOn]}>{t('sniper_badge')}</Text>}
         {s.status === 'paused' && <Text style={[styles.chip, { color: COLORS.warn, borderColor: COLORS.warn }]}>{t('play_paused')}</Text>}
@@ -315,7 +318,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         <View ref={chartRef} collapsable={false} style={styles.frame}>
           <Chart
             rt={rt} state={viewS} width={chartW} height={CHART_H} preview={inSniperPhase} hideAnswer={sniperActive} opts={opts}
-            locked={!isAdvanced && hud.locked && !inSniperPhase} lockedLabel={t('hud_target_locked')} patternLabel={patternLabel}
+            locked={assist && hud.locked && !inSniperPhase} lockedLabel={t('hud_target_locked')} patternLabel={patternLabel}
             buyLabel={t('play_buy').toUpperCase()} sellLabel={t('play_sell').toUpperCase()} zoneLabel={t('chart_zone')}
             playerZone={drawZone ?? sniper?.zone ?? null} playerAnchors={drawAnchors ?? sniper?.anchors ?? null} point1={point1}
           />
