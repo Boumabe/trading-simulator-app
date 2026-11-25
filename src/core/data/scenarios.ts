@@ -30,6 +30,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   breakout: {
+    zoneFrom: 7, // la zone apparaît après la formation du motif
     label: "Breakout & Retest", mode: "zone", touchesRequired: 1,
     zones: [{ low: 109.0, high: 110.2, direction: "buy" }],
     candles: [
@@ -115,6 +116,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   headshoulders: {
+    zoneFrom: 5, // la zone apparaît après la formation du motif
     label: "Tête-épaules", mode: "zone", touchesRequired: 1,
     zones: [{ low: 99.0, high: 100.2, direction: "sell" }],
     candles: [
@@ -127,6 +129,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   doubletop: {
+    zoneFrom: 3, // la zone apparaît après la formation du motif
     label: "Double top / bottom", mode: "zone", touchesRequired: 1,
     zones: [{ low: 97.0, high: 98.2, direction: "sell" }],
     candles: [
@@ -138,6 +141,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   triangle: {
+    zoneFrom: 6, // la zone apparaît après la formation du motif
     label: "Triangle", mode: "zone", touchesRequired: 1,
     zones: [{ low: 104.0, high: 105.2, direction: "buy" }],
     candles: [
@@ -150,6 +154,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   flag: {
+    zoneFrom: 4, // la zone apparaît après la formation du motif
     label: "Drapeau et fanion", mode: "zone", touchesRequired: 1,
     zones: [{ low: 109.3, high: 110.5, direction: "buy" }],
     candles: [
@@ -162,6 +167,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   wedge: {
+    zoneFrom: 5, // la zone apparaît après la formation du motif
     label: "Biseau (wedge)", mode: "zone", touchesRequired: 1,
     zones: [{ low: 99.0, high: 100.2, direction: "sell" }],
     candles: [
@@ -174,6 +180,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   cuphandle: {
+    zoneFrom: 6, // la zone apparaît après la formation du motif
     label: "Cup and handle", mode: "zone", touchesRequired: 1,
     zones: [{ low: 99.5, high: 100.7, direction: "buy" }],
     candles: [
@@ -186,6 +193,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   ma: {
+    lead: 6, // historique déjà dessiné à l'ouverture
+    leadDrift: 0, // historique en oscillation calme : la courbe de l'indicateur bouge avant la vente
     label: "Moyennes mobiles", mode: "ma", shortPeriod: 3, longPeriod: 6, direction: "buy", windowCandles: 3,
     candles: [
       { path: [110, 106] }, { path: [106, 102] }, { path: [102, 98] }, { path: [98, 95] },
@@ -195,6 +204,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   rsi: {
+    lead: 10, // historique déjà dessiné à l'ouverture
+    leadDrift: 0, // historique en oscillation calme : la courbe de l'indicateur bouge avant la vente
     label: "RSI", mode: "indicator", indicator: "rsi", period: 6, oversold: 30, overbought: 70, direction: "buy", windowCandles: 3,
     candles: [
       { path: [112, 110] }, { path: [110, 107] }, { path: [107, 104] }, { path: [104, 101] },
@@ -205,6 +216,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   macd: {
+    lead: 10, // historique déjà dessiné à l'ouverture
+    leadDrift: 0, // historique en oscillation calme : la courbe de l'indicateur bouge avant la vente
     label: "MACD", mode: "indicator", indicator: "macd", shortPeriod: 3, longPeriod: 6, signalPeriod: 3, direction: "buy", windowCandles: 3,
     candles: [
       { path: [115, 112] }, { path: [112, 109] }, { path: [109, 106] }, { path: [106, 103] },
@@ -215,6 +228,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   bollinger: {
+    lead: 8, // historique déjà dessiné à l'ouverture
+    leadDrift: 0, // historique en oscillation calme : la courbe de l'indicateur bouge avant la vente
     label: "Bandes de Bollinger", mode: "band", period: 6, stdMult: 2, direction: "buy", windowCandles: 3,
     candles: [
       { path: [105, 102] }, { path: [102, 99] }, { path: [99, 97] }, { path: [97, 96] }, { path: [96, 95.5] },
@@ -224,6 +239,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   stoch: {
+    lead: 10, // historique déjà dessiné à l'ouverture
+    leadDrift: 0, // historique en oscillation calme : la courbe de l'indicateur bouge avant la vente
     label: "Stochastique", mode: "indicator", indicator: "stoch", period: 6, dPeriod: 3, oversold: 20, overbought: 80, direction: "buy", windowCandles: 3,
     candles: [
       { path: [108, 104] }, { path: [104, 100] }, { path: [100, 96] }, { path: [96, 93] },
@@ -235,6 +252,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   fibo: {
+    zoneFrom: 7, // la zone apparaît après la formation du motif
     label: "Retracements de Fibonacci", mode: "zone", touchesRequired: 1,
     zones: [{ low: 103.2, high: 104.4, direction: "buy" }],
     fiboLevels: [
@@ -252,6 +270,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   fiboext: {
+    zoneFrom: 4, // la zone apparaît après la formation du motif
     label: "Extensions de Fibonacci", mode: "zone", touchesRequired: 1,
     zones: [{ low: 105.7, high: 106.7, direction: "sell" }],
     fiboLevels: [
@@ -287,6 +306,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   volumeprofile: {
+    zoneFrom: 6, // la zone apparaît après la formation du motif
     label: "Volume Profile", mode: "zone", touchesRequired: 1,
     zones: [{ low: 103.3, high: 104.5, direction: "buy" }],
     candles: [
@@ -298,6 +318,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   liquidityzones: {
+    lead: 5, // historique déjà dessiné à l'ouverture
+    zoneFrom: 3, // la zone apparaît après la formation du motif
     label: "Zones de liquidité", mode: "zone", touchesRequired: 1,
     zones: [{ low: 118.8, high: 120.0, direction: "sell" }],
     candles: [
@@ -307,6 +329,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   trend: {
+    zoneFrom: 3, // la zone apparaît après la formation du motif
     label: "Tendance haussière/baissière", mode: "zone", touchesRequired: 1,
     zones: [{ low: 104.6, high: 105.8, direction: "buy" }],
     candles: [
@@ -317,6 +340,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   channel: {
+    zoneFrom: 2, // la zone apparaît après la formation du motif
     label: "Canaux de prix", mode: "zone", touchesRequired: 2,
     zones: [
       { low: 99.4, high: 100.6, direction: "buy" },
@@ -333,16 +357,22 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   orderblock: {
+    zoneFrom: 7, // la zone apparaît après la formation du motif
     label: "Order blocks (ICT)", mode: "zone", touchesRequired: 1,
     zones: [{ low: 99.2, high: 100.4, direction: "buy" }],
+    // Définition : dernière bougie baissière avant une forte impulsion haussière (bougie 3). La zone se trace APRÈS l'impulsion (bougie 6),
+    // puis on attend que le prix revienne la tester (bougie 10) pour acheter.
     candles: [
       { path: [112, 108] }, { path: [108, 104] }, { path: [104, 100.6] },
-      { path: [100.6, 99.5, 100.2], touch: true },
-      { path: [100.2, 105] }, { path: [105, 110] }, { path: [110, 115] }, { path: [115, 113] },
-      { path: [113, 117] }, { path: [117, 120] },
+      { path: [100.6, 99.5, 100.2] },
+      { path: [100.2, 105] }, { path: [105, 110] }, { path: [110, 115] },
+      { path: [115, 111] }, { path: [111, 106] }, { path: [106, 102] },
+      { path: [102, 100, 100.9], touch: true },
+      { path: [100.9, 104] }, { path: [104, 108] }, { path: [108, 112] },
     ],
   },
   fvg: {
+    zoneFrom: 3, // la zone apparaît après la formation du motif
     label: "Fair Value Gap", mode: "zone", touchesRequired: 1,
     zones: [{ low: 103.0, high: 104.2, direction: "buy" }],
     candles: [
@@ -353,6 +383,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   liquiditysweep: {
+    lead: 5, // historique déjà dessiné à l'ouverture
+    zoneFrom: 3, // la zone apparaît après la formation du motif
     label: "Liquidity sweep", mode: "zone", touchesRequired: 1,
     zones: [{ low: 118.8, high: 120.0, direction: "sell" }],
     candles: [
@@ -362,6 +394,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   breakerblock: {
+    zoneFrom: 4, // la zone apparaît après la formation du motif
     label: "Breaker block", mode: "zone", touchesRequired: 1,
     zones: [{ low: 104.8, high: 106.0, direction: "sell" }],
     candles: [
@@ -372,6 +405,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   chochbos: {
+    zoneFrom: 6, // la zone apparaît après la formation du motif
     label: "CHoCH / BOS", mode: "zone", touchesRequired: 1,
     zones: [{ low: 107.0, high: 108.2, direction: "buy" }],
     candles: [
@@ -383,6 +417,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   premiumdiscount: {
+    lead: 6, // historique déjà dessiné à l'ouverture
+    zoneFrom: 1, // la zone apparaît après la formation du motif
     label: "Zones premium/discount", mode: "zone", touchesRequired: 2,
     zones: [
       { low: 99.5, high: 100.7, direction: "buy" },
@@ -397,6 +433,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   ote: {
+    zoneFrom: 6, // la zone apparaît après la formation du motif
     label: "Optimal Trade Entry", mode: "zone", touchesRequired: 1,
     zones: [{ low: 98.4, high: 103.8, direction: "buy" }],
     fiboLevels: [
@@ -413,6 +450,8 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   confluencesr: {
+    lead: 6, // historique déjà dessiné à l'ouverture
+    zoneFrom: 1, // la zone apparaît après la formation du motif
     label: "S/R + chandelier", mode: "zone", touchesRequired: 1,
     zones: [{ low: 99.0, high: 100.2, direction: "buy" }],
     candles: [
@@ -423,6 +462,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
   confluenceictfibo: {
+    zoneFrom: 5, // la zone apparaît après la formation du motif
     label: "ICT + Fibonacci", mode: "zone", touchesRequired: 1,
     zones: [{ low: 100.0, high: 101.4, direction: "buy" }],
     fiboLevels: [
@@ -438,6 +478,7 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
     ],
   },
     trendline: {
+    zoneFrom: 6, // la zone apparaît après la formation du motif
     label: "Lignes de tendance", mode: "trendzone", direction: "buy", tolerance: 2,
     trendAnchors: [{ idx: 2, price: 100 }, { idx: 11, price: 120 }],
     candles: [

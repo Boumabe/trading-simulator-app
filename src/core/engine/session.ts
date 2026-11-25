@@ -30,8 +30,9 @@ export type SessionAction =
   | { type: 'close' }
   | { type: 'reset' };
 
-export const initSession = (): SessionState => ({
-  status: 'idle', closed: 0, tick: 0, position: null, trades: [], combo: 0, bestCombo: 0, events: [],
+/** `startClosed` = bougies d'historique déjà dessinées (rt.lead) : le graphique s'ouvre avec elles. */
+export const initSession = (startClosed = 0): SessionState => ({
+  status: 'idle', closed: startClosed, tick: 0, position: null, trades: [], combo: 0, bestCombo: 0, events: [],
 });
 
 export function currentPrice(rt: Runtime, s: SessionState): number {
@@ -75,7 +76,7 @@ export const makeReducer = (rt: Runtime) => (s: SessionState, a: SessionAction):
     case 'resume':
       return s.status === 'paused' ? { ...s, status: 'running' } : s;
     case 'reset':
-      return initSession();
+      return initSession(rt.lead);
     case 'open': {
       if (s.status !== 'running' || s.position) return s;
       const pos = openPosition(rt, a.side, currentPrice(rt, s), s.closed, a.opts);

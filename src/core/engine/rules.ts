@@ -65,6 +65,8 @@ export function entryStatus(rt: Runtime, e: Entry, opts: RuleOpts = {}): Verdict
 
   switch (cfg.mode) {
     case 'zone': {
+      // La zone se trace une fois le motif formé : avant, aucune entrée n'est valable.
+      if (!opts.playerZone && closed < rt.zoneFrom) return { compliant: false, reason: 'too_early' };
       const z = activeZones(rt, opts).find((zz) => e.price >= zz.low - tol && e.price <= zz.high + tol);
       if (!z) return { compliant: false, reason: 'out_zone' };
       if (z.direction !== e.type) return { compliant: false, reason: 'wrong_side' };
@@ -72,6 +74,7 @@ export function entryStatus(rt: Runtime, e: Entry, opts: RuleOpts = {}): Verdict
       return { compliant: true, reason: 'ok_zone' };
     }
     case 'trendzone': {
+      if (!opts.playerAnchors && closed < rt.zoneFrom) return { compliant: false, reason: 'too_early' };
       if (e.type !== (cfg.direction ?? 'buy')) return { compliant: false, reason: 'wrong_side' };
       const b = trendBandAt(rt, closed, opts);
       const ok = e.price >= b.low - tol && e.price <= b.high + tol;

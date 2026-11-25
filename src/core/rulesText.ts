@@ -13,7 +13,7 @@ export function rulesLabel(rt: Runtime, t: TFn): string {
     case 'pattern':
       return t(cfg.showVolume ? 'rule_pattern_volume' : 'rule_pattern_generic', { action: action(cfg.patternDirection ?? 'buy'), n });
     case 'trendzone':
-      return t('rule_trendzone', { action: action(dir) });
+      return t(rt.zoneFrom > 0 ? 'rule_trendzone_formed' : 'rule_trendzone', { action: action(dir) });
     case 'timewindow':
       return cfg.timewindowType === 'avoid' ? t('rule_timewindow_avoid') : t('rule_timewindow_favor', { action: action(dir) });
     case 'vwap':
@@ -28,9 +28,12 @@ export function rulesLabel(rt: Runtime, t: TFn): string {
       return t('rule_rsi', { action: action(dir), n, rsizone: t(dir === 'buy' ? 'rsi_oversold' : 'rsi_overbought') });
     default: {
       const zones = cfg.zones ?? [];
-      if (zones.length > 1) return t('rule_zone_multi');
+      const k = rt.touchesRequired;
+      const formed = rt.zoneFrom > 0;
+      if (zones.length > 1) return formed ? t('rule_zone_formed_multi') : k >= 2 ? t('rule_zone_multi', { n: k }) : t('rule_zone_multi_1');
       const d = zones[0]?.direction ?? 'buy';
-      return t('rule_zone_single', { action: action(d), side: t(d === 'buy' ? 'side_below' : 'side_above') });
+      const p = { action: action(d), side: t(d === 'buy' ? 'side_below' : 'side_above') };
+      return formed ? t('rule_zone_formed', p) : k >= 2 ? t('rule_zone_single', { ...p, n: k }) : t('rule_zone_single_1', p);
     }
   }
 }
