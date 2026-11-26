@@ -27,6 +27,8 @@ export function hudState(rt: Runtime, s: SessionState, opts: RuleOpts = {}): Hud
   const cfg = rt.cfg;
   const last = Math.max(0, closed - 1);
 
+  const formed = (cfg.mode === 'zone' && !!opts.playerZone) || (cfg.mode === 'trendzone' && !!opts.playerAnchors) || closed >= rt.zoneFrom;
+  if ((cfg.mode === 'zone' || cfg.mode === 'trendzone') && !formed) return { key: 'hud_watching', locked: false, windowOpen: false };
   if (cfg.mode === 'zone') {
     const inside = activeZones(rt, opts).some((z) => price >= z.low && price <= z.high);
     const forming = s.closed < rt.n && rt.candles[s.closed].touch && inside ? 1 : 0;

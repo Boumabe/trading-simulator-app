@@ -43,6 +43,10 @@ export interface Runtime {
   /** touchPrefix[k] = nombre de bougies « touch » parmi les k premières. */
   touchPrefix: number[];
   cutCount: number;
+  /** Bougies d'historique déjà dessinées à l'ouverture (la session démarre avec closed = lead). */
+  lead: number;
+  /** Nombre de bougies fermées à partir duquel la zone / les niveaux sont visibles et valides (0 = dès le départ). */
+  zoneFrom: number;
   sniperEligible: boolean;
   touchesRequired: number;
   windowCandles: number;
@@ -82,11 +86,14 @@ export function trendLine(anchors: [Anchor, Anchor], idx: number, tol: number) {
   return { low: expected - tol, high: expected + tol, mid: expected };
 }
 
-function computeSignals(cfg: ScenarioConfig, candles: Candle[], series: Series): Signal[] {
+/** `lead` = bougies d'historique : elles ne produisent jamais de signal (seuls les événements écrits du scénario comptent). */
+function computeSignals(cfg: ScenarioConfig, candles: Candle[], series: Series, lead = 0): Signal[] {
   const n = candles.length;
   const w = cfg.windowCandles ?? 3;
   const out: Signal[] = [];
-  const push = (i: number, dir: Dir, mark: number | null = i) => out.push({ start: i + 1, end: i + 1 + w, markIdx: mark, dir });
+  const push = (i: number, dir: Dir, mark: number | null = i) => {
+    if (i >= lead) out.push({ start: i + 1, end: i + 1 + w, markIdx: mark, dir });
+  };
   const closes = candles.map((c) => c.close);
 
   if (cfg.mode === 'pattern') {
@@ -109,7 +116,10 @@ function computeSignals(cfg: ScenarioConfig, candles: Candle[], series: Series):
       for (let i = 1; i < n; i++) {
         const [k0, k1, d0, d1] = [k[i - 1], k[i], d[i - 1], d[i]];
         if (k0 === null || k1 === null || d0 === null || d1 === null) continue;
-        if ((dir === 'buy' && k0 - d0 < 0 && k1 - d1 >= 0 && k1 < 50) || (dir === 'sell' && k0 - d0 > 0 && k1 - d1 <= 0 && k1 > 50)) push(i, dir, null);
+        // Croisement net (pas une simple égalité quand %K et %D sont tous deux collés à 0 ou à 100), parti de la zone de survente / surachat.
+        const os = (cfg.oversold ?? 20) + 10;
+        const ob = (cfg.overbought ?? 80) - 10;
+        if ((dir === 'buy' && k0 < d0 && k1 > d1 && k0 < os) || (dir === 'sell' && k0 > d0 && k1 < d1 && k0 > ob)) push(i, dir, null);
       }
     } else {
       const rsi = rsiSeries(closes, cfg.period ?? 6);
@@ -157,7 +167,40 @@ function computeSignals(cfg: ScenarioConfig, candles: Candle[], series: Series):
   return out;
 }
 
-export function compile(id: string, cfg: ScenarioConfig): Runtime {
+/** Pente par défaut de l'historique : prolonge le début du scénario (60 % de sa pente), pour que les indicateurs s'installent sans à-coup. */
+function autoDrift(cfg: ScenarioConfig): number {
+  const c = cfg.candles.slice(0, 2).map((x) => x.path[x.path.length - 1] - x.path[0]);
+  return (c.reduce((a, b) => a + b, 0) / Math.max(1, c.length)) * 0.6;
+}
+
+/**
+ * Historique avant le scénario : marche aléatoire qui revient vers le prix de départ (calme, déterministe),
+ * et qui se termine EXACTEMENT sur le prix d'ouverture de la première bougie du scénario.
+ */
+export function leadPaths(id: string, count: number, endPrice: number, drift = 0): number[][] {
+  if (count <= 0) return [];
+  const rnd = mulberry32(hashString(`${id}:lead`));
+  const w: number[] = [0];
+  for (let i = 1; i <= count; i++) w.push(w[i - 1] * 0.35 + (rnd() - 0.5) * 2 * endPrice * 0.02);
+  // `drift` : pente par bougie de l'historique (négative = le prix descendait déjà), pour prolonger le mouvement du scénario.
+  const base = (i: number) => endPrice - drift * (count - i);
+  const closes = w.slice(1).map((v, i) => round(base(i + 1) + (v - w[count])));
+  const first = round(base(0) + (w[0] - w[count]));
+  return closes.map((c, i) => [i === 0 ? first : closes[i - 1], c]);
+}
+
+export function compile(id: string, source: ScenarioConfig): Runtime {
+  const lead = Math.max(0, Math.floor(source.lead ?? 0));
+  const cfg: ScenarioConfig =
+    lead === 0
+      ? source
+      : {
+          ...source,
+          candles: [...leadPaths(id, lead, source.candles[0].path[0], source.leadDrift ?? autoDrift(source)).map((path) => ({ path })), ...source.candles],
+          trendAnchors: source.trendAnchors?.map((a) => ({ ...a, idx: a.idx + lead })) as [Anchor, Anchor] | undefined,
+          windowRange: source.windowRange ? ([source.windowRange[0] + lead, source.windowRange[1] + lead] as [number, number]) : undefined,
+        };
+  const zoneFrom = source.zoneFrom === undefined ? 0 : source.zoneFrom + lead;
   const ticks = cfg.candles.map((c, i) => buildTicks(id, i, c.path));
   const candles: Candle[] = cfg.candles.map((c, i) => {
     const open = c.path[0];
@@ -173,7 +216,7 @@ export function compile(id: string, cfg: ScenarioConfig): Runtime {
     };
   });
   const series: Series = {};
-  const signals = computeSignals(cfg, candles, series);
+  const signals = computeSignals(cfg, candles, series, lead);
   const touchPrefix = [0];
   candles.forEach((c) => touchPrefix.push(touchPrefix[touchPrefix.length - 1] + (c.touch ? 1 : 0)));
   const n = candles.length;
@@ -189,7 +232,10 @@ export function compile(id: string, cfg: ScenarioConfig): Runtime {
     signals,
     series,
     touchPrefix,
-    cutCount: Math.max(3, Math.min(SESSION.WINDOW_SIZE, Math.floor(n * 0.25))),
+    // Le motif doit être visible dans l'aperçu (mode Sniper) : on y montre au moins les bougies précédant l'apparition de la zone.
+    cutCount: Math.max(3, Math.min(SESSION.WINDOW_SIZE, Math.max(Math.floor(n * 0.25), zoneFrom))),
+    lead,
+    zoneFrom,
     sniperEligible: (cfg.mode === 'zone' && zones.length === 1) || cfg.mode === 'trendzone',
     touchesRequired: cfg.touchesRequired ?? 1,
     windowCandles: cfg.windowCandles ?? 3,

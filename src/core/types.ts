@@ -38,6 +38,18 @@ export interface ScenarioConfig {
   trendAnchors?: [Anchor, Anchor];
   timewindowType?: 'favor' | 'avoid';
   windowRange?: [number, number];
+  /**
+   * Bougies d'historique générées avant le scénario : le graphique s'ouvre avec elles déjà dessinées,
+   * pour que les indicateurs (RSI, stochastique, bandes…) soient déjà en place et qu'on les voie évoluer.
+   */
+  lead?: number;
+  /** Pente par bougie de l'historique (par défaut : 60 % de la pente des deux premières bougies du scénario). */
+  leadDrift?: number;
+  /**
+   * Nombre de bougies (du scénario, hors historique) après lequel la zone / les niveaux apparaissent : on les trace une fois le motif formé.
+   * Avant : rien d'affiché, et une entrée n'est jamais conforme (« trop tôt »). Absent = visible dès le départ.
+   */
+  zoneFrom?: number;
 }
 
 export type L10n = Record<Lang, string>;

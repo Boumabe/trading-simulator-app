@@ -60,7 +60,7 @@ function PlayInner({ level }: { level: LevelDef }) {
 
   const rt = useMemo(() => compile(level.strategyId!, SCENARIOS[level.strategyId!]), [level.strategyId]);
   const reducer = useMemo(() => makeReducer(rt), [rt]);
-  const [s, dispatch] = useReducer(reducer, undefined, initSession);
+  const [s, dispatch] = useReducer(reducer, rt.lead, initSession);
 
   const passesBefore = game.levels[level.id]?.passes ?? 0;
   const tk = trackOf(game.choice);
@@ -182,7 +182,7 @@ function PlayInner({ level }: { level: LevelDef }) {
 
   /* ---------- Actions du joueur ---------- */
   /* Pendant le tutoriel, le graphique montre quelques bougies déjà formées (sinon il est vide avant le départ). */
-  const viewS = phase === 'tour' ? { ...s, closed: Math.min(rt.n - 1, 7), tick: 0 } : s;
+  const viewS = phase === 'tour' ? { ...s, closed: Math.min(rt.n - 1, Math.max(7, rt.lead)), tick: 0 } : s;
   const price = currentPrice(rt, viewS);
   const dir = s.position ? (s.position.type === 'buy' ? 1 : -1) : 0;
   const livePnl = s.position ? (price - s.position.entryPrice) * dir * ECONOMY.POINT_VALUE : 0;

@@ -90,12 +90,14 @@ const Watermark = memo(function Watermark({ g }: { g: Geo }) {
 
 interface ZoneProps {
   g: Geo; rt: Runtime; startIdx: number; opts: RuleOpts; hideAnswer: boolean; zoneLabel?: string;
+  /** Faux tant que le motif n'est pas formé : zone, niveaux et ligne de tendance ne sont pas encore tracés. */
+  formed: boolean;
   playerZone?: Zone | null; playerAnchors?: [Anchor, Anchor] | null; point1?: { idx: number; price: number } | null;
 }
 
-const Overlays = memo(function Overlays({ g, rt, startIdx, opts, hideAnswer, zoneLabel, playerZone, playerAnchors, point1 }: ZoneProps) {
+const Overlays = memo(function Overlays({ g, rt, startIdx, opts, hideAnswer, zoneLabel, formed, playerZone, playerAnchors, point1 }: ZoneProps) {
   const cfg = rt.cfg;
-  const zones = cfg.mode === 'zone' ? (hideAnswer ? (playerZone ? [playerZone] : []) : activeZones(rt, opts)) : [];
+  const zones = cfg.mode === 'zone' && formed ? (hideAnswer ? (playerZone ? [playerZone] : []) : activeZones(rt, opts)) : [];
   return (
     <G>
       {cfg.mode === 'timewindow' && cfg.windowRange && (() => {
@@ -105,7 +107,7 @@ const Overlays = memo(function Overlays({ g, rt, startIdx, opts, hideAnswer, zon
         if (b <= 0 || a >= WIN) return null;
         return <Rect x={a * g.spacing} y={SCALE_H} width={(b - a) * g.spacing} height={g.H} fill={cfg.timewindowType === 'avoid' ? COLORS.bear : COLORS.gold} opacity={0.13} />;
       })()}
-      {cfg.mode === 'trendzone' && !hideAnswer && (
+      {cfg.mode === 'trendzone' && !hideAnswer && formed && (
         <Polyline
           points={Array.from({ length: WIN }, (_, i) => `${g.x(i)},${g.y(trendBandAt(rt, startIdx + i, opts).mid)}`).join(' ')}
           fill="none" stroke={COLORS.blue} strokeWidth={1.5} strokeDasharray="4,3"
@@ -138,7 +140,7 @@ const Overlays = memo(function Overlays({ g, rt, startIdx, opts, hideAnswer, zon
           </G>
         );
       })}
-      {!hideAnswer && cfg.fiboLevels?.map((lv, i) => (
+      {!hideAnswer && formed && cfg.fiboLevels?.map((lv, i) => (
         <G key={`f${i}`}>
           <Line x1={0} y1={g.y(lv.price)} x2={g.plotW} y2={g.y(lv.price)} stroke={lv.highlight ? COLORS.gold : COLORS.blue} strokeWidth={lv.highlight ? 1.4 : 0.8} strokeDasharray={lv.highlight ? undefined : '3,3'} opacity={lv.highlight ? 0.9 : 0.5} />
           <SvgText x={4} y={g.y(lv.price) - 3} fill={lv.highlight ? COLORS.gold : COLORS.dim} fontSize={9}>{lv.pct}</SvgText>
@@ -295,7 +297,7 @@ export function Chart(p: ChartProps) {
         i % 3 === 0 ? <SvgText key={i} x={g.x(i)} y={11} fill={COLORS.dim} fontSize={9} opacity={0.8} textAnchor="middle">{startIdx + i + 1}</SvgText> : null,
       )}
       <Grid g={g} />
-      <Overlays g={g} rt={rt} startIdx={startIdx} opts={p.opts} hideAnswer={!!p.hideAnswer} zoneLabel={p.zoneLabel} playerZone={p.playerZone} playerAnchors={p.playerAnchors} point1={p.point1} />
+      <Overlays g={g} rt={rt} startIdx={startIdx} opts={p.opts} hideAnswer={!!p.hideAnswer} zoneLabel={p.zoneLabel} formed={!!p.preview || !!p.hideAnswer || state.closed >= rt.zoneFrom} playerZone={p.playerZone} playerAnchors={p.playerAnchors} point1={p.point1} />
       {!preview && <Series g={g} rt={rt} startIdx={startIdx} endIdx={endIdx} />}
       <Candles g={g} rt={rt} startIdx={startIdx} endIdx={endIdx} patternLabel={p.patternLabel} />
       {!preview && <Forming g={g} rt={rt} state={state} startIdx={startIdx} locked={p.locked} label={p.lockedLabel} position={state.position} buyLabel={p.buyLabel ?? 'BUY'} sellLabel={p.sellLabel ?? 'SELL'} />}
