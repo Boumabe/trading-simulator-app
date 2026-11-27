@@ -2,10 +2,10 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LEVELS } from '../core/data/levels';
-import { useI18n } from '../core/i18n';
+import { levelName, useI18n } from '../core/i18n';
 import { useGame } from '../core/store/game';
 import { ACHIEVEMENTS } from '../core/store/achievements';
-import { liveStreak, topMistake } from '../core/store/logic';
+import { liveStreak, topMistake, weakestLevels } from '../core/store/logic';
 import { RANK_COUNT, rankOf } from '../core/store/ranks';
 import { Btn } from '../ui/Button';
 import { HudBar } from '../ui/HudBar';
@@ -31,6 +31,7 @@ export default function ProfileScreen() {
   const discipline = g.stats.trades ? Math.round((g.stats.compliant / g.stats.trades) * 100) : 0;
   const unlocked = ACHIEVEMENTS.filter((a) => g.achievements[a.id]).length;
   const top = topMistake(g);
+  const weak = weakestLevels(g);
 
   return (
     <Screen bottom={false}>
@@ -62,6 +63,20 @@ export default function ProfileScreen() {
             <Text style={styles.mistakeSub}>{t('profile_top_mistake_none')}</Text>
           )}
           <Text style={styles.honest}>{t('profile_honest')}</Text>
+        </View>
+
+        <View style={styles.mistakeCard}>
+          <Text style={styles.eyebrow}>{t('profile_weak_title')}</Text>
+          {weak.length ? (
+            weak.map((w) => (
+              <View key={w.levelId} style={{ marginTop: 8 }}>
+                <Text style={styles.mistakeText}>{t('profile_weak_row', { id: w.levelId, name: levelName(w.levelId, lang), rate: w.rate, ok: w.compliant, n: w.trades })}</Text>
+                <View style={styles.weakTrack}><View style={[styles.weakFill, { width: `${w.rate}%` }]} /></View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.mistakeSub}>{t('profile_weak_none')}</Text>
+          )}
         </View>
 
         <Text style={styles.section}>{t('profile_achievements')} · {unlocked}/{ACHIEVEMENTS.length}</Text>
@@ -97,6 +112,8 @@ const styles = StyleSheet.create({
   mistakeCard: { backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.md, padding: 14, marginTop: 14 },
   mistakeText: { color: COLORS.text, fontSize: 15, fontWeight: '700', lineHeight: 21, marginTop: 6 },
   mistakeSub: { color: COLORS.dim, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  weakTrack: { height: 5, borderRadius: 3, backgroundColor: COLORS.line, marginTop: 6, overflow: 'hidden' },
+  weakFill: { height: 5, backgroundColor: COLORS.bear },
   honest: { color: COLORS.dim, fontSize: 11, lineHeight: 16, marginTop: 10, fontStyle: 'italic' },
   section: { color: COLORS.dim, fontSize: 11, letterSpacing: 1.2, fontWeight: '800', marginTop: 22, marginBottom: 10 },
   achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

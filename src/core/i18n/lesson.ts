@@ -63,7 +63,10 @@ export const LESSON_TEXT: Record<Lang, Record<string, string>> = {
     "ob_src_instagram": "Instagram",
     "ob_src_youtube": "YouTube",
     "ob_src_whatsapp": "WhatsApp ou Telegram",
-    "ob_src_skip": "Passer cette question"
+    "ob_src_skip": "Passer cette question",
+    "profile_weak_title": "Tes points faibles",
+    "profile_weak_row": "Niveau {id} · {name} : {rate} % conformes ({ok}/{n} trades)",
+    "profile_weak_none": "Joue quelques niveaux (3 trades par niveau au moins) pour voir où ta discipline est la plus fragile."
   },
   "en": {
     "why_too_early": "Too early — the signal had not appeared yet.",
@@ -126,7 +129,10 @@ export const LESSON_TEXT: Record<Lang, Record<string, string>> = {
     "ob_src_instagram": "Instagram",
     "ob_src_youtube": "YouTube",
     "ob_src_whatsapp": "WhatsApp or Telegram",
-    "ob_src_skip": "Skip this question"
+    "ob_src_skip": "Skip this question",
+    "profile_weak_title": "Your weak spots",
+    "profile_weak_row": "Level {id} · {name}: {rate}% compliant ({ok}/{n} trades)",
+    "profile_weak_none": "Play a few levels (at least 3 trades per level) to see where your discipline is weakest."
   },
   "es": {
     "why_too_early": "Demasiado pronto — la señal aún no había aparecido.",
@@ -189,6 +195,9 @@ export const LESSON_TEXT: Record<Lang, Record<string, string>> = {
     "ob_src_instagram": "Instagram",
     "ob_src_youtube": "YouTube",
     "ob_src_whatsapp": "WhatsApp o Telegram",
-    "ob_src_skip": "Saltar esta pregunta"
+    "ob_src_skip": "Saltar esta pregunta",
+    "profile_weak_title": "Tus puntos débiles",
+    "profile_weak_row": "Nivel {id} · {name}: {rate} % conformes ({ok}/{n} operaciones)",
+    "profile_weak_none": "Juega algunos niveles (al menos 3 operaciones por nivel) para ver dónde es más frágil tu disciplina."
   }
 };
