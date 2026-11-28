@@ -26,15 +26,19 @@ import { HudBar } from '../ui/HudBar';
 import { ResultOverlay } from '../ui/ResultOverlay';
 import { Screen, TopBar } from '../ui/Screen';
 import { GuidedTour, type TourStep } from '../ui/GuidedTour';
+import { DailyBriefing } from '../ui/DailyBriefing';
+import { DailyNoTrade, DailyResult, type DailyOutcome } from '../ui/DailyResult';
+import { liveDailyStreak, marksFrom, type DailyPlay } from '../core/daily';
+import { dayKey } from '../core/store/logic';
 import { TradeFeedback, type FeedbackData } from '../ui/TradeFeedback';
 import { useShake } from '../ui/anim';
 import { COLORS, FILL, RADIUS, money } from '../ui/theme';
 
-type Phase = 'tour' | 'sniper_intro' | 'sniper_p1' | 'sniper_p2' | 'sniper_confirm' | 'play';
+type Phase = 'briefing' | 'tour' | 'sniper_intro' | 'sniper_p1' | 'sniper_p2' | 'sniper_confirm' | 'play';
 interface Sniper { zone?: Zone; anchors?: [Anchor, Anchor]; accuracy: number }
 const CHART_H = 220;
 
-export default function PlayScreen({ levelId }: { levelId: number }) {
+export default function PlayScreen({ levelId, daily }: { levelId: number; daily?: DailyPlay }) {
   const level = levelById(levelId);
   const { t } = useI18n();
   const router = useRouter();
@@ -46,10 +50,10 @@ export default function PlayScreen({ levelId }: { levelId: number }) {
       </Screen>
     );
   }
-  return <PlayInner key={level.id} level={level} />;
+  return <PlayInner key={daily ? `daily-${daily.key}` : level.id} level={level} daily={daily} />;
 }
 
-function PlayInner({ level }: { level: LevelDef }) {
+function PlayInner({ level, daily }: { level: LevelDef; daily?: DailyPlay }) {
   const { t } = useI18n();
   const router = useRouter();
   const game = useGame();
@@ -58,7 +62,7 @@ function PlayInner({ level }: { level: LevelDef }) {
   const { width } = useWindowDimensions();
   const chartW = Math.min(width - 24, 520);
 
-  const rt = useMemo(() => compile(level.strategyId!, SCENARIOS[level.strategyId!]), [level.strategyId]);
+  const rt = useMemo(() => (daily ? compile(daily.id, daily.cfg) : compile(level.strategyId!, SCENARIOS[level.strategyId!])), [level.strategyId, daily]);
   const reducer = useMemo(() => makeReducer(rt), [rt]);
   const [s, dispatch] = useReducer(reducer, rt.lead, initSession);
 
@@ -69,9 +73,9 @@ function PlayInner({ level }: { level: LevelDef }) {
   /** Aide « cible verrouillée » : permanente pour le débutant, jusqu'à la 1re réussite du niveau pour l'intermédiaire, jamais pour l'avancé. */
   const assist = showTargetCue(game.choice, passesBefore);
   /** Avancé : on dessine sa zone dès la 1re partie (aucune réponse donnée). Les autres : après une première réussite. */
-  const sniperFirst = rt.sniperEligible && (passesBefore > 0 || isAdvanced);
+  const sniperFirst = !daily && rt.sniperEligible && (passesBefore > 0 || isAdvanced);
   /** Le tutoriel d'interface ne s'adresse qu'au débutant ; les autres ne le voient pas. */
-  const [phase, setPhase] = useState<Phase>(() => (isBeginner && !game.seenTour ? 'tour' : sniperFirst ? 'sniper_intro' : 'play'));
+  const [phase, setPhase] = useState<Phase>(() => (daily ? 'briefing' : isBeginner && !game.seenTour ? 'tour' : sniperFirst ? 'sniper_intro' : 'play'));
   /** Débutant : vitesse ×0,5 tant qu'il n'a pas validé le niveau (il peut l'accélérer ; on mesure s'il le fait). */
   const [speed, setSpeed] = useState<Speed>(isBeginner && passesBefore === 0 ? 0.5 : 1);
   const [sniper, setSniper] = useState<Sniper | null>(null);
@@ -81,6 +85,10 @@ function PlayInner({ level }: { level: LevelDef }) {
   const [fb, setFb] = useState<FeedbackData | null>(null);
   const [result, setResult] = useState<LevelResult | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
+  /** Défi du jour : résultat final, ou « aucun trade » (le défi n'est alors pas validé). */
+  const [dailyOutcome, setDailyOutcome] = useState<DailyOutcome | null>(null);
+  const [dailyNoTrade, setDailyNoTrade] = useState(false);
+  const dailyFinished = useRef(false);
   const [showInfo, setShowInfo] = useState(false);
   const [coins, setCoins] = useState(0);
   const [confetti, setConfetti] = useState(0);
@@ -112,7 +120,7 @@ function PlayInner({ level }: { level: LevelDef }) {
   useEffect(() => {
     if (phase === 'play' && s.status === 'idle') {
       dispatch({ type: 'start' });
-      track({ e: 'level_start', track: tk, levelId: level.id });
+      if (!daily) track({ e: 'level_start', track: tk, levelId: level.id });
     }
   }, [phase, s.status, tk, level.id]);
 
@@ -141,9 +149,11 @@ function PlayInner({ level }: { level: LevelDef }) {
     if (ev.type === 'candle') {
       if (ev.touch || ev.pattern) haptic('select');
     } else if (ev.type === 'open') {
+      if (daily) actions.startChallenge(daily.key);
       if (ev.verdict.compliant) { sfx('click'); haptic('light'); } else haptic('warning');
     } else if (ev.type === 'trade') {
-      const r = actions.recordTrade(ev.trade, ev.combo, level.id);
+      // Défi du jour : aucun argent en jeu (ni capital, ni XP, ni statistiques de niveau) ; seule la discipline compte.
+      const r = daily ? { xp: 0, delta: null as number | null } : actions.recordTrade(ev.trade, ev.combo, level.id);
       fbId.current += 1;
       setFb({ id: fbId.current, trade: ev.trade, xp: r.xp, combo: ev.combo, delta: r.delta });
       if (ev.trade.compliant) {
@@ -155,7 +165,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         shake.shake();
       }
     }
-  }, [actions, level.id, shake]);
+  }, [actions, level.id, shake, daily]);
 
   useEffect(() => {
     for (let i = processed.current; i < s.events.length; i++) onEvent(s.events[i]);
@@ -163,10 +173,20 @@ function PlayInner({ level }: { level: LevelDef }) {
   }, [s.events, onEvent]);
 
   useEffect(() => {
-    if (s.status !== 'ended' || result) return;
+    if (!daily || s.status !== 'ended' || dailyOutcome || dailyNoTrade || dailyFinished.current) return;
+    const st = sessionStats(s);
+    if (st.count === 0) { setDailyNoTrade(true); return; }
+    dailyFinished.current = true;
+    const marks = marksFrom(s.trades);
+    const r = actions.finishChallenge({ key: daily.key, discipline: st.discipline, marks, trades: st.count });
+    setDailyOutcome({ number: daily.number, discipline: Math.round(st.discipline), marks, trades: st.count, streak: r.streak, best: r.best, milestone: r.milestone });
+  }, [daily, s, dailyOutcome, dailyNoTrade, actions]);
+
+  useEffect(() => {
+    if (daily || s.status !== 'ended' || result) return;
     const st = sessionStats(s);
     setResult(actions.finishLevel({ levelId: level.id, discipline: st.discipline, trades: st.count, sniperAccuracy: sniper?.accuracy }));
-  }, [s, result, actions, level.id, sniper]);
+  }, [s, result, actions, level.id, sniper, daily]);
 
   /* ---------- « Cible verrouillée » : signal sonore quand une entrée conforme devient possible ---------- */
   const hud = hudState(rt, s, opts);
@@ -186,19 +206,19 @@ function PlayInner({ level }: { level: LevelDef }) {
   const price = currentPrice(rt, viewS);
   const dir = s.position ? (s.position.type === 'buy' ? 1 : -1) : 0;
   const livePnl = s.position ? (price - s.position.entryPrice) * dir * ECONOMY.POINT_VALUE : 0;
-  const canTrade = game.balance > 0 && s.status === 'running' && !s.position;
+  const canTrade = (daily ? true : game.balance > 0) && s.status === 'running' && !s.position;
 
   const open = (side: 'buy' | 'sell') => canTrade && dispatch({ type: 'open', side, opts });
 
   const requestExit = useCallback(() => {
-    if (result) { router.replace('/map'); return; }
+    if (result || dailyOutcome) { router.replace('/map'); return; }
     if (phase === 'play' && (s.status === 'running' || s.status === 'paused')) {
       dispatch({ type: 'pause' });
       setConfirmExit(true);
       return;
     }
     router.back();
-  }, [result, phase, s.status, router]);
+  }, [result, dailyOutcome, phase, s.status, router]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { requestExit(); return true; });
@@ -206,6 +226,15 @@ function PlayInner({ level }: { level: LevelDef }) {
   }, [requestExit]);
 
   const quit = () => {
+    if (daily) {
+      // Quitter après un trade valide le défi avec les trades déjà pris ; avant tout trade, rien n'est consommé.
+      const end = s.position ? reducer(s, { type: 'close' }) : s;
+      const st = sessionStats(end);
+      actions.quitChallenge(st.count);
+      if (st.count > 0) actions.finishChallenge({ key: daily.key, discipline: st.discipline, marks: marksFrom(end.trades), trades: st.count });
+      router.replace('/map');
+      return;
+    }
     track({ e: 'level_quit', track: tk, levelId: level.id });
     if (s.position) {
       const next = reducer(s, { type: 'close' });
@@ -218,7 +247,8 @@ function PlayInner({ level }: { level: LevelDef }) {
   const replay = () => {
     dispatch({ type: 'reset' });
     processed.current = 0;
-    setResult(null); setFb(null); setSniper(null); setDrawZone(null); setDrawAnchors(null); setPoint1(null);
+    dailyFinished.current = false;
+    setResult(null); setDailyNoTrade(false); setFb(null); setSniper(null); setDrawZone(null); setDrawAnchors(null); setPoint1(null);
     if (sniperFirst) setPhase('sniper_intro'); else setPhase('play');
   };
 
@@ -266,7 +296,16 @@ function PlayInner({ level }: { level: LevelDef }) {
   return (
     <Screen>
       <View ref={rootRef} collapsable={false} style={{ flex: 1 }}>
-      <View ref={hudRef} collapsable={false}><HudBar compact liveDelta={livePnl} /></View>
+      <View ref={hudRef} collapsable={false}>
+        {daily ? (
+          <View style={styles.dailyBar}>
+            <Text style={styles.dailyBarTitle}>{t('daily_num', { n: daily.number })}</Text>
+            <Text style={styles.dailyBarStreak}>{(() => { const n = liveDailyStreak(game.challenge, dayKey(Date.now())); return n >= 2 ? t('daily_streak_n', { n }) : n === 1 ? t('daily_streak_1') : ''; })()}</Text>
+          </View>
+        ) : (
+          <HudBar compact liveDelta={livePnl} />
+        )}
+      </View>
       <TopBar
         title={name}
         onBack={requestExit}
@@ -282,7 +321,7 @@ function PlayInner({ level }: { level: LevelDef }) {
         ) : null}
       />
 
-      {game.balance <= 0 && <View style={styles.broke}><Text style={styles.brokeText}>{t('play_broke_banner')}</Text></View>}
+      {!daily && game.balance <= 0 && <View style={styles.broke}><Text style={styles.brokeText}>{t('play_broke_banner')}</Text></View>}
 
       {drawing && (
         <View style={styles.banner}>
@@ -363,6 +402,9 @@ function PlayInner({ level }: { level: LevelDef }) {
         </View>
       )}
 
+      {phase === 'briefing' && daily && <DailyBriefing number={daily.number} name={name} rule={rulesLabel(rt, t)} onStart={() => setPhase('play')} />}
+      {dailyOutcome && <DailyResult outcome={dailyOutcome} onBack={() => router.replace('/map')} />}
+      {dailyNoTrade && <DailyNoTrade onRetry={replay} onBack={() => router.replace('/map')} />}
       {phase === 'tour' && <GuidedTour steps={tourSteps} rootRef={rootRef} onStep={(i) => track({ e: 'tour', track: tk, step: String(i + 1) })} onEnd={endTour} />}
 
       {phase === 'sniper_intro' && (
@@ -453,4 +495,7 @@ const styles = StyleSheet.create({
   confirm: { position: 'absolute', left: 14, right: 14, bottom: 96, backgroundColor: COLORS.panel, borderWidth: 1, borderColor: COLORS.gold, borderRadius: RADIUS.md, padding: 14, alignItems: 'center', zIndex: 15 },
   confirmTitle: { color: COLORS.gold, fontSize: 15, fontWeight: '800', marginBottom: 4 },
   confirmText: { color: COLORS.text, fontSize: 12, textAlign: 'center', marginBottom: 10 },
+  dailyBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line, backgroundColor: COLORS.panel },
+  dailyBarTitle: { color: COLORS.gold, fontSize: 13, fontWeight: '800', letterSpacing: 1.5 },
+  dailyBarStreak: { color: COLORS.gold, fontSize: 12, fontWeight: '800' },
 });

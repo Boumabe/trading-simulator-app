@@ -5,9 +5,11 @@ import type { TradeResult } from '../engine/rules';
 import type { StartChoice } from '../data/levels';
 import { setFeedbackPrefs } from '../services/feedback';
 import { persistAndFlush, restorePending, setAnalyticsEnabled, track, type SourceValue, type Track } from '../services/analytics';
+import { cancelChallengeReminders, scheduleChallengeReminders, type ReminderResult } from '../services/reminders';
+import { finishDailyState, liveDailyStreak } from '../daily';
 import {
   applyPlacement, applyTrade, claimDaily, completeLevel, completeQuiz, dismissBanner, finishLesson as finishLessonState, initialState, refill, resetAll, resetCapital,
-  retentionTick, toPersisted, toggleChecklist, touchClock, type DailyReward, type GameState, type LevelResult, type Persisted, type TradeReward,
+  dayKey, retentionTick, toPersisted, toggleChecklist, touchClock, type DailyReward, type GameState, type LevelResult, type Persisted, type TradeReward,
 } from './logic';
 import { loadPersisted, savePersisted, wipeStorage } from './storage';
 
@@ -28,6 +30,13 @@ export interface GameActions {
   recordTrade(trade: TradeResult, combo: number, levelId: number): TradeReward;
   finishLevel(a: { levelId: number; discipline: number; trades: number; sniperAccuracy?: number }): LevelResult;
   finishQuiz(a: { levelId: number; correct: number; total: number }): LevelResult;
+  /** Défi du jour : le 1er trade est ouvert (le défi est alors compté, même si on quitte). */
+  startChallenge(key: string): void;
+  /** Défi du jour terminé : met à jour la série et renvoie ce qu'il faut afficher. */
+  finishChallenge(a: { key: string; discipline: number; marks: string; trades: number }): { streak: number; best: number; milestone: number | null; first: boolean };
+  quitChallenge(trades: number): void;
+  markChallengeViewed(key: string, state: 'locked' | 'ready' | 'done'): void;
+  setChallengeReminder(on: boolean): Promise<ReminderResult>;
   claimDaily(): DailyReward | null;
   refill(): boolean;
   resetCapital(): void;
@@ -40,6 +49,15 @@ export interface GameActions {
 
 const StateCtx = createContext<GameState | null>(null);
 const ActionsCtx = createContext<GameActions | null>(null);
+
+/** Remet à jour les 3 prochains rappels du défi (à chaque ouverture et après chaque défi), si le joueur les a activés. */
+function refreshChallengeReminders(s: GameState): void {
+  if (!s.challenge.remind) return;
+  const now = Date.now();
+  void scheduleChallengeReminders({
+    ask: false, langSetting: s.settings.lang, streak: liveDailyStreak(s.challenge, dayKey(now)), playedToday: s.challenge.today?.key === dayKey(now), now,
+  });
+}
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const ref = useRef<GameState>(initialState());
@@ -77,7 +95,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         track({ e: 'cohort_src', v: 'unknown' });
         track({ e: 'cohort_trk', v: trackOf(ref.current.choice) });
       }
-      track({ e: 'open', track: trackOf(ref.current.choice), source: ref.current.source ?? 'none', newPlayer: rt.newPlayer, retDay: rt.retDay });
+      refreshChallengeReminders(ref.current);
+      track({ e: 'open', track: trackOf(ref.current.choice), source: ref.current.source ?? 'none', daily: ref.current.challenge.plays > 0, newPlayer: rt.newPlayer, retDay: rt.retDay });
     });
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') { flush(); void persistAndFlush(); }
@@ -136,6 +155,43 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         const r = mutate((s) => completeQuiz(s, { ...a, now: Date.now() }));
         track({ e: 'quiz_end', track: trackOf(ref.current.choice), levelId: a.levelId, stars: r.stars });
         return r;
+      },
+      startChallenge: (key) => {
+        if (ref.current.challenge.started === key) return;
+        commit({ ...ref.current, challenge: { ...ref.current.challenge, started: key } });
+        track({ e: 'daily_start', track: trackOf(ref.current.choice) });
+      },
+      finishChallenge: (a) => {
+        const r = finishDailyState(ref.current.challenge, a);
+        commit({ ...ref.current, challenge: r.daily });
+        const tk = trackOf(ref.current.choice);
+        track({ e: 'daily_done', track: tk, discipline: a.discipline });
+        if (r.first) track({ e: 'daily_first' });
+        if (r.milestone) track({ e: 'daily_streak', n: r.milestone });
+        refreshChallengeReminders(ref.current);
+        return { streak: r.streak, best: r.daily.best, milestone: r.milestone, first: r.first };
+      },
+      quitChallenge: (trades) => track({ e: 'daily_quit', track: trackOf(ref.current.choice), trades }),
+      markChallengeViewed: (key, st) => {
+        if (ref.current.challenge.viewKey === key) return;
+        commit({ ...ref.current, challenge: { ...ref.current.challenge, viewKey: key } });
+        track({ e: 'daily_view', track: trackOf(ref.current.choice), state: st });
+      },
+      setChallengeReminder: async (on) => {
+        const tk = trackOf(ref.current.choice);
+        if (!on) {
+          await cancelChallengeReminders();
+          commit({ ...ref.current, challenge: { ...ref.current.challenge, remind: false } });
+          track({ e: 'daily_reminder', track: tk, on: false });
+          return 'granted';
+        }
+        const now = Date.now();
+        const res = await scheduleChallengeReminders({
+          ask: true, langSetting: ref.current.settings.lang, streak: liveDailyStreak(ref.current.challenge, dayKey(now)), playedToday: ref.current.challenge.today?.key === dayKey(now), now,
+        });
+        commit({ ...ref.current, challenge: { ...ref.current.challenge, remind: res === 'granted' } });
+        if (res === 'granted') track({ e: 'daily_reminder', track: tk, on: true });
+        return res;
       },
       claimDaily: () => mutate((s) => claimDaily(s, Date.now())),
       refill: () => {

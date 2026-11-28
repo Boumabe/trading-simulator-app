@@ -24,6 +24,7 @@ export default function RootLayout() {
               <Stack.Screen name="system" options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="stats" options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="lesson" options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen name="daily" options={{ animation: 'slide_from_right' }} />
             </Stack>
             <RewardHost />
           </View>

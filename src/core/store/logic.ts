@@ -3,6 +3,7 @@ import { starsFor, xpForLevel, xpForTrade, type Stars } from '../engine/scoring'
 import type { TradeResult } from '../engine/rules';
 import type { LangSetting } from '../types';
 import { levelById, OPEN_TIER, type StartChoice } from '../data/levels';
+import type { DailyState } from '../daily';
 import { ACHIEVEMENTS } from './achievements';
 import { rankOf } from './ranks';
 
@@ -23,10 +24,14 @@ export interface Persisted {
   stats: { trades: number; compliant: number; bestCombo: number; sessions: number; perfect: number; sniper: number; quizPerfect: number };
   /** Trades hors règle par raison (sert à « ton erreur n°1 »). */
   mistakes: Record<string, number>;
+  /** Trades et trades conformes par niveau (sert à « tes points faibles »). */
+  levelStats: Record<number, { trades: number; compliant: number }>;
   /** Leçon 0 (lecture d'une bougie) terminée ou passée. */
   lessonDone: boolean;
   /** Question « Comment as-tu connu Simtra ? » déjà posée (répondue ou passée) : on ne la repose pas. */
   sourceAsked: boolean;
+  /** Défi du jour : série, jour validé, rappel (à ne pas confondre avec `daily`, le coffre quotidien). */
+  challenge: DailyState;
   /** Provenance du joueur : sa réponse, « skip » (passée), « unknown » (installé avant la question) ou null (pas encore posée). Sert à la rétention par provenance. */
   source: string | null;
   settings: { sound: boolean; haptics: boolean; lang: LangSetting; analytics: boolean };
@@ -71,9 +76,11 @@ export const defaultPersisted = (): Persisted => ({
   achievements: {},
   stats: { trades: 0, compliant: 0, bestCombo: 0, sessions: 0, perfect: 0, sniper: 0, quizPerfect: 0 },
   mistakes: {},
+  levelStats: {},
   lessonDone: false,
   sourceAsked: false,
   source: null,
+  challenge: { streak: 0, best: 0, plays: 0, lastKey: null, started: null, today: null, recent: [], viewKey: null, remind: false },
   settings: { sound: true, haptics: true, lang: 'auto', analytics: true },
   seenTour: false,
   checklist: [],
@@ -92,7 +99,7 @@ export function dayKey(now: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-function daysBetween(a: string, b: string): number {
+export function daysBetween(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
@@ -150,6 +157,10 @@ export function applyTrade(s: GameState, a: { trade: TradeResult; combo: number;
       bestCombo: Math.max(s.stats.bestCombo, a.combo),
     },
     mistakes: a.trade.compliant ? s.mistakes : { ...s.mistakes, [a.trade.reason]: (s.mistakes[a.trade.reason] ?? 0) + 1 },
+    levelStats: {
+      ...s.levelStats,
+      [a.levelId]: { trades: (s.levelStats[a.levelId]?.trades ?? 0) + 1, compliant: (s.levelStats[a.levelId]?.compliant ?? 0) + (a.trade.compliant ? 1 : 0) },
+    },
   };
   const r = settleRewards(s, next, a.now);
   next = r.state;
@@ -288,6 +299,35 @@ export function topMistake(s: Pick<Persisted, 'mistakes'>): { reason: string; co
   return { reason: entries[0][0], count: entries[0][1], total };
 }
 
+const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const dayOrNull = (v: unknown): string | null => (typeof v === 'string' && KEY_RE.test(v) ? v : null);
+
+export function sanitizeDaily(raw: unknown): DailyState {
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
+  const n = (v: unknown) => Math.max(0, Math.floor(num(v, 0)));
+  const today = r.today && typeof r.today === 'object' && dayOrNull(r.today.key)
+    ? { key: r.today.key as string, discipline: Math.min(100, n(r.today.discipline)), marks: typeof r.today.marks === 'string' ? r.today.marks.replace(/[^GR]/g, '').slice(0, 8) : '', trades: n(r.today.trades) }
+    : null;
+  return {
+    streak: n(r.streak), best: Math.max(n(r.best), n(r.streak)), plays: n(r.plays),
+    lastKey: dayOrNull(r.lastKey), started: dayOrNull(r.started), today,
+    recent: Array.isArray(r.recent) ? r.recent.filter((x: any) => x && dayOrNull(x.key)).map((x: any) => ({ key: x.key as string, d: Math.min(100, n(x.d)) })).slice(-14) : [],
+    viewKey: dayOrNull(r.viewKey), remind: !!r.remind,
+  };
+}
+
+export const WEAK_MIN_TRADES = 3;
+
+/** Niveaux où la discipline est la plus faible (au moins 3 trades, pour ne pas conclure sur du bruit), du plus faible au moins faible. */
+export function weakestLevels(s: Pick<Persisted, 'levelStats'>, n = 3): { levelId: number; trades: number; compliant: number; rate: number }[] {
+  return Object.entries(s.levelStats)
+    .map(([k, v]) => ({ levelId: Number(k), trades: v.trades, compliant: v.compliant, rate: v.trades ? Math.round((v.compliant / v.trades) * 100) : 0 }))
+    .filter((x) => x.trades >= WEAK_MIN_TRADES && x.rate < 100)
+    .sort((a, b) => a.rate - b.rate || b.trades - a.trades || a.levelId - b.levelId)
+    .slice(0, n);
+}
+
 export const finishLesson = (s: GameState): GameState => ({ ...s, lessonDone: true });
 
 /**
@@ -348,8 +388,17 @@ export function sanitize(raw: unknown): Persisted {
       r.mistakes && typeof r.mistakes === 'object'
         ? Object.fromEntries(Object.entries(r.mistakes as Record<string, unknown>).filter(([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0).map(([k, v]) => [k, Math.floor(v as number)]))
         : {},
+    levelStats:
+      r.levelStats && typeof r.levelStats === 'object'
+        ? Object.fromEntries(
+            Object.entries(r.levelStats as Record<string, { trades?: unknown; compliant?: unknown }>)
+              .map(([k, v]) => [Number(k), { trades: Math.floor(num(v?.trades, 0)), compliant: Math.floor(num(v?.compliant, 0)) }] as const)
+              .filter(([k, v]) => Number.isInteger(k) && k > 0 && v.trades > 0 && v.compliant >= 0 && v.compliant <= v.trades),
+          )
+        : {},
     lessonDone: !!r.lessonDone,
     sourceAsked: !!r.sourceAsked,
+    challenge: sanitizeDaily(r.challenge),
     source: typeof r.source === 'string' && r.source.length <= 20 ? r.source : null,
     settings: {
       sound: r.settings?.sound !== false,

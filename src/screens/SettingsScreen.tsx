@@ -20,7 +20,7 @@ export default function SettingsScreen() {
   const { settings } = game;
   const taps = useRef(0);
   const canRedo = canRedoPlacement(game);
-  const { setSettings, resetCapital, resetAll } = useActions();
+  const { setSettings, resetCapital, resetAll, setChallengeReminder } = useActions();
   const [confirm, setConfirm] = useState<Confirm>(null);
   const langs: LangSetting[] = ['auto', 'fr', 'en', 'es'];
 
@@ -43,6 +43,10 @@ export default function SettingsScreen() {
         <View style={[styles.card, { marginTop: 12 }]}>
           <Row label={t('settings_analytics')} value={settings.analytics} onChange={(v) => setSettings({ analytics: v })} last />
           <Text style={[styles.cardDesc, { marginTop: 6, marginBottom: 0 }]}>{t('settings_analytics_desc')}</Text>
+        </View>
+
+        <View style={[styles.card, { marginTop: 12 }]}>
+          <Row label={t('settings_daily_reminder')} value={game.challenge.remind} onChange={(v) => { void setChallengeReminder(v); }} last />
         </View>
 
         <View style={[styles.card, { marginTop: 12 }]}>

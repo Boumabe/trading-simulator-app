@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted, topMistake, finishLesson, showTargetCue } from '../src/core/store/logic';
+import { initialState, applyTrade, completeLevel, completeQuiz, claimDaily, dailyAvailable, dailyReward, liveStreak, refill, refillAvailable, migrateLegacy, sanitize, isUnlocked, dayKey, resetAll, applyPlacement, canRedoPlacement, retentionTick, toPersisted, topMistake, finishLesson, showTargetCue, weakestLevels } from '../src/core/store/logic';
 import { rankOf } from '../src/core/store/ranks';
 import type { TradeResult } from '../src/core/engine/rules';
 
@@ -248,4 +248,25 @@ test('provenance mémorisée : valeur courte acceptée, valeurs invalides ignor�
   assert.equal(sanitize({ source: 42 }).source, null);
   assert.equal(sanitize({ source: 'x'.repeat(50) }).source, null);
   assert.equal(initialState().source, null);
+});
+
+/* ---------- Points faibles par niveau ---------- */
+
+test('points faibles : trades et conformité comptés par niveau, tri du plus faible au moins faible', () => {
+  let s = ready();
+  const trade = (compliant: boolean) => ({ type: 'buy', entryPrice: 1, exitPrice: 1, entryClosed: 1, exitClosed: 2, pnl: 0, net: 0, compliant, reason: compliant ? 'ok_zone' : 'too_early' }) as never;
+  const play = (levelId: number, results: boolean[]) => { for (const r of results) s = applyTrade(s, { trade: trade(r), combo: 0, levelId, now: T0 }).state; };
+  play(1, [true, true, true]);           // 100 % : pas un point faible
+  play(2, [true, false, false, false]);  // 25 %
+  play(3, [true, true, false]);          // 67 %
+  play(4, [false, false]);               // 2 trades seulement : trop peu
+  assert.deepEqual(s.levelStats[2], { trades: 4, compliant: 1 });
+  assert.deepEqual(weakestLevels(s).map((w) => [w.levelId, w.rate]), [[2, 25], [3, 67]]);
+  assert.equal(weakestLevels(s, 1).length, 1);
+});
+
+test('points faibles : sauvegardes anciennes et valeurs invalides', () => {
+  assert.deepEqual(sanitize({}).levelStats, {});
+  const p = sanitize({ levelStats: { '5': { trades: 4, compliant: 2 }, '6': { trades: 2, compliant: 5 }, x: { trades: 1, compliant: 1 }, '0': { trades: 3, compliant: 1 } } });
+  assert.deepEqual(p.levelStats, { 5: { trades: 4, compliant: 2 } });
 });

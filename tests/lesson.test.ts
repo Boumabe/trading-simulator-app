@@ -23,3 +23,7 @@ test('leçon 0 : la bonne réponse est un index valide, pas toujours le même', 
 test('correctif : les raisons « trop tôt » et « trop tard » ont un texte dans chaque langue', () => {
   for (const lang of ['fr', 'en', 'es'] as const) for (const r of ['too_early', 'too_late', 'wrong_side', 'out_zone', 'unconfirmed', 'off_line', 'out_window', 'in_avoid']) assert.ok(dictionary[lang][`why_${r}`], `${lang} why_${r}`);
 });
+
+test('points faibles : textes dans chaque langue', () => {
+  for (const lang of ['fr', 'en', 'es'] as const) for (const k of ['profile_weak_title', 'profile_weak_row', 'profile_weak_none']) assert.ok(dictionary[lang][k], `${lang} ${k}`);
+});

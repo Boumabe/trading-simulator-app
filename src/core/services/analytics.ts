@@ -16,7 +16,16 @@ export type SourceValue = 'friend' | 'tiktok' | 'facebook' | 'instagram' | 'yout
 export const SOURCE_CHOICES = ['friend', 'tiktok', 'facebook', 'instagram', 'youtube', 'whatsapp', 'store', 'other'] as const;
 
 export type AppEvent =
-  | { e: 'open'; track: Track; source: string; newPlayer: boolean; retDay: number | null }
+  | { e: 'open'; track: Track; source: string; daily: boolean; newPlayer: boolean; retDay: number | null }
+  | { e: 'daily_view'; track: Track; state: 'locked' | 'ready' | 'done' }
+  | { e: 'daily_start'; track: Track }
+  | { e: 'daily_done'; track: Track; discipline: number }
+  | { e: 'daily_quit'; track: Track; trades: number }
+  | { e: 'daily_share'; track: Track }
+  | { e: 'daily_streak'; n: number }
+  | { e: 'daily_reminder'; track: Track; on: boolean }
+  /** Premier défi validé : sert de dénominateur à la rétention « a fait le défi / ne l'a pas fait ». */
+  | { e: 'daily_first' }
   /** Nouveau joueur rattaché à sa provenance (au moment de sa réponse) ou « unknown » (joueur déjà installé avant la question). */
   | { e: 'cohort_src'; v: SourceValue | 'unknown' }
   /** Nouveau joueur rattaché à son profil (au moment où il le choisit). */
@@ -97,6 +106,7 @@ export function countsFor(ev: AppEvent): Counts {
         // Rétention ventilée : par provenance et par profil (dénominateurs : cohort.src et cohort.trk).
         bump(c, ['ret', 'src', `d${ev.retDay}`, ev.source]);
         bump(c, ['ret', 'trk', `d${ev.retDay}`, ev.track]);
+        bump(c, ['ret', 'dly', `d${ev.retDay}`, ev.daily ? 'yes' : 'no']);
       }
       break;
     case 'cohort_src':
@@ -174,6 +184,32 @@ export function countsFor(ev: AppEvent): Counts {
       break;
     case 'source':
       bump(c, ['c', 'source', ev.v]);
+      break;
+    // Défi du jour : tout sous « c » (les règles Firestore publiées n'acceptent que certaines clés de premier niveau) ; cohort.dly = clé « cohort ».
+    case 'daily_view':
+      bump(c, ['c', 'daily_view', ev.state, ev.track]);
+      break;
+    case 'daily_start':
+      bump(c, ['c', 'daily_start', ev.track]);
+      break;
+    case 'daily_done':
+      bump(c, ['c', 'daily_done', ev.track]);
+      bump(c, ['c', 'daily_disc', Math.min(100, Math.floor(ev.discipline / 25) * 25)]);
+      break;
+    case 'daily_quit':
+      bump(c, ['c', 'daily_quit', ev.trades > 0 ? 'after_trade' : 'before_trade', ev.track]);
+      break;
+    case 'daily_share':
+      bump(c, ['c', 'daily_share', ev.track]);
+      break;
+    case 'daily_streak':
+      bump(c, ['c', 'daily_streak', ev.n]);
+      break;
+    case 'daily_reminder':
+      bump(c, ['c', 'daily_rem', ev.on ? 'on' : 'off', ev.track]);
+      break;
+    case 'daily_first':
+      bump(c, ['cohort', 'dly', 'yes']);
       break;
     case 'tour':
       bump(c, ['c', 'tour', ev.step, ev.track]);

@@ -11,6 +11,7 @@ import { dailyAvailable, isUnlocked } from '../core/store/logic';
 import { Btn } from '../ui/Button';
 import { DailyChest } from '../ui/DailyChest';
 import { HudBar } from '../ui/HudBar';
+import { DailyCard } from '../ui/DailyCard';
 import { Screen } from '../ui/Screen';
 import { usePulse, useShake } from '../ui/anim';
 import { COLORS, FILL, RADIUS } from '../ui/theme';
@@ -97,6 +98,7 @@ export default function MapScreen() {
     <Screen bottom={false}>
       <HudBar onPress={() => router.push('/profile')} />
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 40 }}>
+        <DailyCard />
         {game.choice === 'debutant' && !game.lessonDone && (
           <Pressable accessibilityRole="button" onPress={() => { reward.tap(); router.push('/lesson' as never); }} style={styles.lessonBanner}>
             <Text style={styles.ctaEyebrow}>🌱 {t('map_lesson_sub')}</Text>
