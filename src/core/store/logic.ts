@@ -3,6 +3,7 @@ import { starsFor, xpForLevel, xpForTrade, type Stars } from '../engine/scoring'
 import type { TradeResult } from '../engine/rules';
 import type { LangSetting } from '../types';
 import { levelById, OPEN_TIER, type StartChoice } from '../data/levels';
+import type { DailyState } from '../daily';
 import { ACHIEVEMENTS } from './achievements';
 import { rankOf } from './ranks';
 
@@ -29,6 +30,8 @@ export interface Persisted {
   lessonDone: boolean;
   /** Question « Comment as-tu connu Simtra ? » déjà posée (répondue ou passée) : on ne la repose pas. */
   sourceAsked: boolean;
+  /** Défi du jour : série, jour validé, rappel (à ne pas confondre avec `daily`, le coffre quotidien). */
+  challenge: DailyState;
   /** Provenance du joueur : sa réponse, « skip » (passée), « unknown » (installé avant la question) ou null (pas encore posée). Sert à la rétention par provenance. */
   source: string | null;
   settings: { sound: boolean; haptics: boolean; lang: LangSetting; analytics: boolean };
@@ -77,6 +80,7 @@ export const defaultPersisted = (): Persisted => ({
   lessonDone: false,
   sourceAsked: false,
   source: null,
+  challenge: { streak: 0, best: 0, plays: 0, lastKey: null, started: null, today: null, recent: [], viewKey: null, remind: false },
   settings: { sound: true, haptics: true, lang: 'auto', analytics: true },
   seenTour: false,
   checklist: [],
@@ -95,7 +99,7 @@ export function dayKey(now: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-function daysBetween(a: string, b: string): number {
+export function daysBetween(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
@@ -295,6 +299,24 @@ export function topMistake(s: Pick<Persisted, 'mistakes'>): { reason: string; co
   return { reason: entries[0][0], count: entries[0][1], total };
 }
 
+const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const dayOrNull = (v: unknown): string | null => (typeof v === 'string' && KEY_RE.test(v) ? v : null);
+
+export function sanitizeDaily(raw: unknown): DailyState {
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
+  const n = (v: unknown) => Math.max(0, Math.floor(num(v, 0)));
+  const today = r.today && typeof r.today === 'object' && dayOrNull(r.today.key)
+    ? { key: r.today.key as string, discipline: Math.min(100, n(r.today.discipline)), marks: typeof r.today.marks === 'string' ? r.today.marks.replace(/[^GR]/g, '').slice(0, 8) : '', trades: n(r.today.trades) }
+    : null;
+  return {
+    streak: n(r.streak), best: Math.max(n(r.best), n(r.streak)), plays: n(r.plays),
+    lastKey: dayOrNull(r.lastKey), started: dayOrNull(r.started), today,
+    recent: Array.isArray(r.recent) ? r.recent.filter((x: any) => x && dayOrNull(x.key)).map((x: any) => ({ key: x.key as string, d: Math.min(100, n(x.d)) })).slice(-14) : [],
+    viewKey: dayOrNull(r.viewKey), remind: !!r.remind,
+  };
+}
+
 export const WEAK_MIN_TRADES = 3;
 
 /** Niveaux où la discipline est la plus faible (au moins 3 trades, pour ne pas conclure sur du bruit), du plus faible au moins faible. */
@@ -376,6 +398,7 @@ export function sanitize(raw: unknown): Persisted {
         : {},
     lessonDone: !!r.lessonDone,
     sourceAsked: !!r.sourceAsked,
+    challenge: sanitizeDaily(r.challenge),
     source: typeof r.source === 'string' && r.source.length <= 20 ? r.source : null,
     settings: {
       sound: r.settings?.sound !== false,

@@ -5,7 +5,7 @@ import type { TradeResult } from '../core/engine/rules';
 import { ND } from './anim';
 import { COLORS, RADIUS, money } from './theme';
 
-export interface FeedbackData { id: number; trade: TradeResult; xp: number; combo: number; delta: number }
+export interface FeedbackData { id: number; trade: TradeResult; xp: number; combo: number; /** null = pas d'argent en jeu (défi du jour) */ delta: number | null }
 
 /** Carte qui explique chaque trade : pourquoi il est conforme (ou non), ce qu'il rapporte, le combo en cours. */
 export function TradeFeedback({ data, onDone }: { data: FeedbackData; onDone: () => void }) {
@@ -33,7 +33,7 @@ export function TradeFeedback({ data, onDone }: { data: FeedbackData; onDone: ()
         {data.combo >= 2 && ok ? <Text style={styles.combo}>🔥 {t('combo_x', { n: data.combo })}</Text> : null}
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.net, { color: data.delta >= 0 ? COLORS.bull : COLORS.bear }]}>{money(data.delta, true)}</Text>
+        {data.delta !== null && <Text style={[styles.net, { color: data.delta >= 0 ? COLORS.bull : COLORS.bear }]}>{money(data.delta, true)}</Text>}
         {data.xp > 0 ? <Text style={styles.xp}>+{data.xp} XP</Text> : null}
       </View>
     </Animated.View>

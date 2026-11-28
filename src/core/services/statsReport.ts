@@ -65,6 +65,34 @@ export function buildReport(s: Counts): Section[] {
     .map((r) => retLine(TRACK_LABEL[r.t], r.size, (d) => num(s, 'ret', 'trk', d, r.t)));
   out.push({ title: 'Rétention par profil', lines: trkRows.length ? trkRows : ['Pas encore de données.'] });
 
+  // Défi du jour : entonnoir (vu → commencé → terminé → partagé) et rétention de ceux qui l'ont fait.
+  const dv = (st: string) => TRACKS.reduce((n, t) => n + num(s, 'c', 'daily_view', st, t), 0);
+  const dStart = sumTracks(s, 'daily_start');
+  const dDone = sumTracks(s, 'daily_done');
+  const dShare = sumTracks(s, 'daily_share');
+  const dQuit = (w: string) => TRACKS.reduce((n, t) => n + num(s, 'c', 'daily_quit', w, t), 0);
+  const dlyYes = num(s, 'cohort', 'dly', 'yes');
+  const dlyNo = Math.max(0, cohort - dlyYes);
+  out.push({
+    title: 'Défi du jour',
+    lines: [
+      `Carte vue : prête ${dv('ready')} · terminée ${dv('done')} · verrouillée ${dv('locked')}`,
+      `Commencés : ${dStart} · validés : ${dDone} (${pct(dDone, dStart)} des commencés) · partagés : ${dShare} (${pct(dShare, dDone)} des validés)`,
+      `Abandons : avant tout trade ${dQuit('before_trade')} · après un trade ${dQuit('after_trade')}`,
+      `Discipline des défis validés : ${[0, 25, 50, 75, 100].map((b) => `${b === 100 ? '100' : `${b}-${b + 24}`} % : ${num(s, 'c', 'daily_disc', b)}`).join(' · ')}`,
+      `Séries atteintes : ${[3, 7, 14, 30].map((n) => `${n} j : ${num(s, 'c', 'daily_streak', n)}`).join(' · ')}`,
+      `Rappel quotidien : activé ${TRACKS.reduce((n, t) => n + num(s, 'c', 'daily_rem', 'on', t), 0)} · coupé ${TRACKS.reduce((n, t) => n + num(s, 'c', 'daily_rem', 'off', t), 0)}`,
+    ],
+  });
+  out.push({
+    title: 'Rétention : ont-ils fait le défi ?',
+    lines: [
+      'À lire avec prudence : ceux qui font le défi sont déjà les plus motivés (ce n’est pas une preuve que le défi crée la rétention).',
+      retLine('A fait au moins un défi', dlyYes, (d) => num(s, 'ret', 'dly', d, 'yes')),
+      retLine('N’a fait aucun défi', dlyNo, (d) => num(s, 'ret', 'dly', d, 'no')),
+    ],
+  });
+
   out.push({
     title: 'Accueil et test de niveau',
     lines: [

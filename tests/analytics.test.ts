@@ -23,8 +23,8 @@ test('mapNumbers transforme chaque nombre et garde la structure', () => {
 });
 
 test('événement open : joueur, cohorte et rétention', () => {
-  assert.deepEqual(countsFor({ e: 'open', track: 'new', source: 'none', newPlayer: true, retDay: null }), { c: { open: { new: 1 } }, cohort: { n: 1 } });
-  assert.deepEqual(countsFor({ e: 'open', track: 'debutant', source: 'tiktok', newPlayer: false, retDay: 7 }), { c: { open: { debutant: 1 } }, ret: { d7: 1, src: { d7: { tiktok: 1 } }, trk: { d7: { debutant: 1 } } } });
+  assert.deepEqual(countsFor({ e: 'open', track: 'new', source: 'none', daily: false, newPlayer: true, retDay: null }), { c: { open: { new: 1 } }, cohort: { n: 1 } });
+  assert.deepEqual(countsFor({ e: 'open', track: 'debutant', source: 'tiktok', daily: true, newPlayer: false, retDay: 7 }), { c: { open: { debutant: 1 } }, ret: { d7: 1, src: { d7: { tiktok: 1 } }, trk: { d7: { debutant: 1 } }, dly: { d7: { yes: 1 } } } });
 });
 
 test('événement level_end : réussite, étoiles et discipline par niveau et par profil', () => {
@@ -83,7 +83,7 @@ test('leçon 0 et provenance : uniquement sous la clé « c » (règles Firestor
   const evs = [
     { e: 'lesson_start', track: 'debutant' }, { e: 'lesson_done', track: 'debutant', correct: 2 },
     { e: 'lesson_skip', track: 'new' }, { e: 'source', v: 'social' },
-    { e: 'open', track: 'new', source: 'none', newPlayer: true, retDay: 1 }, { e: 'cohort_src', v: 'tiktok' }, { e: 'cohort_trk', v: 'avance' }, { e: 'tour', track: 'new', step: '1' }, { e: 'level_start', track: 'avance', levelId: 2 },
+    { e: 'open', track: 'new', source: 'none', daily: true, newPlayer: true, retDay: 1 }, { e: 'cohort_src', v: 'tiktok' }, { e: 'cohort_trk', v: 'avance' }, { e: 'tour', track: 'new', step: '1' }, { e: 'level_start', track: 'avance', levelId: 2 },
     { e: 'trade', track: 'avance', levelId: 2, reason: 'ok_zone', compliant: true }, { e: 'speed', track: 'new', to: 0.5 },
     { e: 'rate', track: 'new', levelId: 2, v: 'ok' }, { e: 'diag_answer', qid: 'rr', result: 'right' }, { e: 'diag_done', correct: 3, place: 'debutant' },
     { e: 'level_end', track: 'new', levelId: 1, stars: 1, discipline: 50, passed: true }, { e: 'quiz_end', track: 'new', levelId: 25, stars: 1 },
